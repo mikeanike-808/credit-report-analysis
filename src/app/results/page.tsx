@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Brand } from '@/components/ui/Brand';
 import { Icon } from '@/components/ui/Icon';
-import { SignOutButton } from '@/components/ui/SignOutButton';
+import { UserButton } from '@clerk/nextjs';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { CreditOverview } from '@/components/dashboard/CreditOverview';
 import { StrengthsWeaknesses } from '@/components/dashboard/StrengthsWeaknesses';
@@ -37,7 +37,7 @@ export default function ResultsPage() {
             <button className="btn btn-ghost" style={{ fontSize: 14 }} onClick={() => router.push('/')}>
               <Icon name="refresh" size={15} /> New Analysis
             </button>
-            <SignOutButton />
+            <UserButton />
           </div>
         </header>
 

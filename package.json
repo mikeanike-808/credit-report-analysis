@@ -10,6 +10,7 @@
     "postinstall": "node -e \"const fs=require('fs'),path=require('path');const src=require.resolve('pdfjs-dist/build/pdf.worker.min.mjs');const dest=path.join(__dirname,'public','pdf.worker.min.mjs');fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(src,dest);\""
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.5.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.1",
     "next": "14.2.5",
