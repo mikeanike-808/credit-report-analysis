@@ -174,7 +174,7 @@ overall.health: A holistic integer 0–100 reflecting credit health. Weight paym
 
 overall.rating: Reflect the overall credit health using the same rating scale.
 
-negativeItems[]: List every collection, charge-off, late payment (30/60/90+ days), judgment, lien, tax lien, repossession, or bankruptcy. Be exhaustive — do not omit any. Set impactPoints as a string like "-30–50 pts". For each item, set bureaus[] to only the bureau keys ("experian", "equifax", "transunion") where that specific account actually appears in the report — do not default to all three; if an item only shows on one bureau, list only that one.
+negativeItems[]: List every collection, charge-off, late payment (30/60/90+ days), judgment, lien, tax lien, repossession, or bankruptcy. Be exhaustive — do not omit any. Set impactPoints as a string like "-30–50 pts". For each item, set bureaus[] ONLY to the bureau keys ("experian", "equifax", "transunion") where that specific account is explicitly reported. Read the report carefully — credit reports typically label sections per bureau (e.g. "Experian Report", "TransUnion Data"), use column headers per bureau, or mark each tradeline with per-bureau reporting indicators. Do NOT default all items to all three bureaus. If an account only appears under one bureau's section, bureaus[] must contain only that one key. If it appears under two, list only those two. This field drives which dispute letter options the user sees, so accuracy is critical.
 
 stats: Count directly from the report. utilization is e.g. "34%". estimatedImprovement is a realistic point-gain range if disputes succeed, e.g. "40–80".
 

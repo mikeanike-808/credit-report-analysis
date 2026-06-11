@@ -178,7 +178,7 @@ export function DisputeLetters() {
           <div>
             <h2 className="section-title">Dispute Letters</h2>
             <p style={{ margin: '4px 0 0', fontSize: 13.5, color: 'var(--ink-3)' }}>
-              Select a company and bureau to generate a targeted dispute letter pre-filled with that account&rsquo;s details.
+              Select a company and bureau to generate a targeted dispute letter pre-filled with that error&rsquo;s details.
             </p>
           </div>
         </div>
@@ -223,25 +223,21 @@ export function DisputeLetters() {
 
                 {/* Right: bureau pills + dropdown */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  {/* Bureau indicator pills */}
+                  {/* Bureau indicator pills — only show bureaus that actually reported this error */}
                   <div style={{ display: 'flex', gap: 5 }}>
-                    {BUREAUS.map((b) => {
-                      const active = bureausForGroup.includes(b.key);
-                      return (
-                        <span
-                          key={b.key}
-                          style={{
-                            fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
-                            background: active ? b.color + '18' : 'var(--surface-2)',
-                            color: active ? b.color : 'var(--ink-4)',
-                            border: `1px solid ${active ? b.color + '44' : 'var(--border)'}`,
-                            opacity: active ? 1 : 0.45,
-                          }}
-                        >
-                          {b.abbr}
-                        </span>
-                      );
-                    })}
+                    {BUREAUS.filter((b) => bureausForGroup.includes(b.key)).map((b) => (
+                      <span
+                        key={b.key}
+                        style={{
+                          fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                          background: b.color + '18',
+                          color: b.color,
+                          border: `1px solid ${b.color + '44'}`,
+                        }}
+                      >
+                        {b.abbr}
+                      </span>
+                    ))}
                   </div>
 
                   {/* Bureau selector dropdown */}
@@ -279,10 +275,6 @@ export function DisputeLetters() {
           })}
         </div>
 
-        <div style={{ marginTop: 16, fontSize: 12.5, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Icon name="lock" size={13} />
-          Bureau indicators show only where each account actually appears in your report.
-        </div>
       </section>
 
       {open && (

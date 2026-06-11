@@ -79,13 +79,13 @@ export function NegativeItems({ items }: NegativeItemsProps) {
     <section className="card" style={{ marginBottom: 16, padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '20px 22px 12px', borderBottom: '1px solid var(--border-2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <h2 className="section-title">Negative Items</h2>
+          <h2 className="section-title">Errors</h2>
           <span style={{ background: 'var(--red-bg)', color: 'var(--red)', borderRadius: 999, padding: '2px 10px', fontSize: 12.5, fontWeight: 700 }}>
             {items.length}
           </span>
         </div>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--ink-3)' }}>
-          These items are negatively impacting your credit scores.
+          These errors are negatively impacting your credit scores.
         </p>
       </div>
 
