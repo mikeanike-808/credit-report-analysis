@@ -1,13 +1,8 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { clerkMiddleware } from '@clerk/nextjs/server';
 
-// All routes are protected — unauthenticated users are redirected to Clerk's sign-in
-const isPublicRoute = createRouteMatcher(['/__clerk(.*)']);
-
-export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    await auth.protect();
-  }
-});
+// All routes are public — auth is optional.
+// Clerk is still initialized so useUser(), UserButton, SignInButton etc. work everywhere.
+export default clerkMiddleware();
 
 export const config = {
   matcher: [

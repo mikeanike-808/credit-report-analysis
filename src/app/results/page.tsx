@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Brand } from '@/components/ui/Brand';
 import { Icon } from '@/components/ui/Icon';
-import { UserButton } from '@clerk/nextjs';
+import { UserButton, SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { CreditOverview } from '@/components/dashboard/CreditOverview';
 import { StrengthsWeaknesses } from '@/components/dashboard/StrengthsWeaknesses';
@@ -16,6 +16,7 @@ import { DisputeLetters } from '@/components/dashboard/DisputeLetters';
 export default function ResultsPage() {
   const router = useRouter();
   const { result } = useAnalysis();
+  const { isSignedIn } = useUser();
 
   // Redirect to upload page if accessed directly (no result in context)
   useEffect(() => {
@@ -73,6 +74,50 @@ export default function ResultsPage() {
           </div>
 
           <DisputeLetters />
+
+          {!isSignedIn && (
+            <div style={{
+              marginTop: 24,
+              border: '1px solid #d9e4ff',
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, #f0f5ff 0%, #f8faff 100%)',
+              padding: 'clamp(20px,3vw,32px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 24,
+              flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, background: '#dbeafe',
+                  display: 'grid', placeItems: 'center', flex: 'none',
+                }}>
+                  <Icon name="shield" size={22} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16.5, color: 'var(--ink)', marginBottom: 4 }}>
+                    Save this report & unlock more features
+                  </div>
+                  <div style={{ fontSize: 13.5, color: 'var(--ink-3)', lineHeight: 1.55, maxWidth: 480 }}>
+                    Create a free account to save your analysis, track your credit progress over time, and access premium dispute tools.
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <SignUpButton mode="modal">
+                  <button className="btn btn-primary" style={{ fontSize: 14, padding: '10px 20px' }}>
+                    Create Free Account
+                  </button>
+                </SignUpButton>
+                <SignInButton mode="modal">
+                  <button className="btn btn-outline" style={{ fontSize: 14, padding: '10px 20px' }}>
+                    Sign In
+                  </button>
+                </SignInButton>
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, color: 'var(--muted)', fontSize: 12.8 }}>
             <Icon name="lock" size={14} /> Your data is never stored. Everything is processed in real-time and discarded after your session.
