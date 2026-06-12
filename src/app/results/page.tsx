@@ -20,7 +20,7 @@ export default function ResultsPage() {
 
   // Redirect to upload page if accessed directly (no result in context)
   useEffect(() => {
-    if (!result) router.replace('/');
+    if (!result) router.replace('/analyze');
   }, [result, router]);
 
   if (!result) return null;
@@ -35,7 +35,7 @@ export default function ResultsPage() {
         <header className="topbar">
           <Brand />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button className="btn btn-ghost" style={{ fontSize: 14 }} onClick={() => router.push('/')}>
+            <button className="btn btn-ghost" style={{ fontSize: 14 }} onClick={() => router.push('/analyze')}>
               <Icon name="refresh" size={15} /> New Analysis
             </button>
             <UserButton />
