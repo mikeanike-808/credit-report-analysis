@@ -13,6 +13,17 @@ const CreditScoreSchema = z.object({
   rating: z.string(),
 });
 
+const DISPUTE_CATEGORIES = [
+  'Not Mine',
+  'Inaccurate Information',
+  'Balance/Status Error',
+  'Obsolete (Past Reporting Limit)',
+  'Unverifiable Debt',
+  'Re-Aged Account',
+  'Duplicate Entry',
+  'Account Closed/Paid Incorrectly',
+] as const;
+
 const NegativeItemSchema = z.object({
   priority: z.enum(['High', 'Medium', 'Low']),
   creditor: z.string(),
@@ -27,6 +38,12 @@ const NegativeItemSchema = z.object({
   laws: z.array(z.string()),
   recommendedAction: z.string(),
   bureaus: z.array(z.string()),
+  disputeCategory: z.enum(DISPUTE_CATEGORIES),
+  dofd: z.string().nullable(),
+  reportingDeadline: z.string().nullable(),
+  pastReportingLimit: z.boolean(),
+  disputeStrength: z.enum(['Strong', 'Moderate', 'Weak']),
+  specificViolation: z.string(),
 });
 
 const ActionItemSchema = z.object({

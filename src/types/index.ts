@@ -11,6 +11,16 @@ export interface UserInfo {
 
 export type ImpactLevel = 'High' | 'Medium' | 'Low' | 'Positive';
 export type PriorityLevel = 'High' | 'Medium' | 'Low';
+export type DisputeStrength = 'Strong' | 'Moderate' | 'Weak';
+export type DisputeCategory =
+  | 'Not Mine'
+  | 'Inaccurate Information'
+  | 'Balance/Status Error'
+  | 'Obsolete (Past Reporting Limit)'
+  | 'Unverifiable Debt'
+  | 'Re-Aged Account'
+  | 'Duplicate Entry'
+  | 'Account Closed/Paid Incorrectly';
 
 export interface CreditScore {
   bureau: string;
@@ -33,6 +43,18 @@ export interface NegativeItem {
   recommendedAction: string;
   /** Which bureaus actually report this item — only the ones present in the report */
   bureaus: string[];
+  /** FCRA-based category classifying why this item is disputable */
+  disputeCategory: DisputeCategory;
+  /** Date of First Delinquency extracted from the report (null if not found) */
+  dofd: string | null;
+  /** Reporting deadline: ~7 yrs + 180 days from DOFD (null if DOFD unknown) */
+  reportingDeadline: string | null;
+  /** True if the item's reporting deadline has already passed */
+  pastReportingLimit: boolean;
+  /** Estimated likelihood this dispute will succeed */
+  disputeStrength: DisputeStrength;
+  /** One sentence describing the exact violation and why it's disputable */
+  specificViolation: string;
 }
 
 export interface ActionItem {

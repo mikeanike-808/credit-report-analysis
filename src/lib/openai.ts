@@ -51,6 +51,8 @@ const ANALYSIS_JSON_SCHEMA = {
           'priority', 'creditor', 'accountNumber', 'type', 'balance',
           'status', 'dateReported', 'reasons', 'impact', 'impactPoints',
           'laws', 'recommendedAction', 'bureaus',
+          'disputeCategory', 'dofd', 'reportingDeadline', 'pastReportingLimit',
+          'disputeStrength', 'specificViolation',
         ],
         properties: {
           priority: { type: 'string', enum: ['High', 'Medium', 'Low'] },
@@ -66,6 +68,24 @@ const ANALYSIS_JSON_SCHEMA = {
           laws: { type: 'array', items: { type: 'string' } },
           recommendedAction: { type: 'string' },
           bureaus: { type: 'array', items: { type: 'string' } },
+          disputeCategory: {
+            type: 'string',
+            enum: [
+              'Not Mine',
+              'Inaccurate Information',
+              'Balance/Status Error',
+              'Obsolete (Past Reporting Limit)',
+              'Unverifiable Debt',
+              'Re-Aged Account',
+              'Duplicate Entry',
+              'Account Closed/Paid Incorrectly',
+            ],
+          },
+          dofd: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+          reportingDeadline: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+          pastReportingLimit: { type: 'boolean' },
+          disputeStrength: { type: 'string', enum: ['Strong', 'Moderate', 'Weak'] },
+          specificViolation: { type: 'string' },
         },
       },
     },
@@ -158,29 +178,66 @@ export async function analyzeReport(
   return AnalysisResultSchema.parse(parsed);
 }
 
-const SYSTEM_PROMPT = `You are an expert credit analyst and consumer rights attorney. You analyze credit reports and produce structured JSON output.
+const SYSTEM_PROMPT = `You are an expert credit analyst and consumer rights attorney specializing in FCRA disputes. You analyze credit reports and produce structured JSON output.
 
-You have deep knowledge of:
+You have deep, precise knowledge of:
 - Fair Credit Reporting Act (FCRA), 15 U.S.C. § 1681 et seq.
 - Fair Debt Collection Practices Act (FDCPA), 15 U.S.C. § 1692 et seq.
 - Equal Credit Opportunity Act (ECOA), 15 U.S.C. § 1691 et seq.
+- Metro 2 credit reporting format and common furnisher errors
 - Dispute processes for Experian, Equifax, and TransUnion
 
 Field guidelines:
 
-scores[]: Extract all bureau scores from the report. Include entries for all three bureaus (experian, equifax, transunion). Set score to null if not found in the report. Rating values: "Exceptional" (800+), "Very Good" (740–799), "Good" (670–739), "Fair" (580–669), "Poor" (< 580). Estimate rating from context if no numeric score.
+scores[]: Extract all bureau scores from the report. Include entries for all three bureaus (experian, equifax, transunion). Set score to null if not found. Rating values: "Exceptional" (800+), "Very Good" (740–799), "Good" (670–739), "Fair" (580–669), "Poor" (< 580). Estimate rating from context if no numeric score.
 
-overall.health: A holistic integer 0–100 reflecting credit health. Weight payment history (35%), utilization (30%), account age (15%), credit mix (10%), and inquiries (10%). Do not average scores.
+overall.health: Integer 0–100 reflecting credit health. Weight payment history (35%), utilization (30%), account age (15%), credit mix (10%), inquiries (10%). Do not average scores.
 
-overall.rating: Reflect the overall credit health using the same rating scale.
+overall.rating: Same rating scale as scores.
 
-negativeItems[]: List every collection, charge-off, late payment (30/60/90+ days), judgment, lien, tax lien, repossession, or bankruptcy. Be exhaustive — do not omit any. Set impactPoints as a string like "-30–50 pts". For each item, set bureaus[] ONLY to the bureau keys ("experian", "equifax", "transunion") where that specific account is explicitly reported. Read the report carefully — credit reports typically label sections per bureau (e.g. "Experian Report", "TransUnion Data"), use column headers per bureau, or mark each tradeline with per-bureau reporting indicators. Do NOT default all items to all three bureaus. If an account only appears under one bureau's section, bureaus[] must contain only that one key. If it appears under two, list only those two. This field drives which dispute letter options the user sees, so accuracy is critical.
+negativeItems[]: List every collection, charge-off, late payment (30/60/90+ days), judgment, lien, repossession, or bankruptcy. Be exhaustive. Set impactPoints as a string like "-30–50 pts".
 
-stats: Count directly from the report. utilization is e.g. "34%". estimatedImprovement is a realistic point-gain range if disputes succeed, e.g. "40–80".
+bureaus[]: Set ONLY to the bureau keys ("experian", "equifax", "transunion") where that specific account explicitly appears. Do NOT default all items to all three bureaus. This drives which dispute letters are shown, so accuracy is critical.
 
-actionPlan[]: Concrete, specific steps ordered High → Medium → Low → Positive impact. Reference actual accounts and applicable law sections where relevant.
+For each negative item, apply the following FCRA classification logic in order:
 
-disputeLetters[]: Write exactly three entries with bureau values "experian", "equifax", "transunion" (lowercase). Each must be a complete formal business dispute letter referencing specific accounts found in the report and citing relevant FCRA/FDCPA sections. Letters must be ready to mail — no placeholders or bracketed fields.
+STEP 1 — Extract dofd (Date of First Delinquency):
+Look for fields labeled "Date of First Delinquency", "DOFD", "Original Delinquency Date", or derive it from the original missed-payment date. Set dofd to the date string found, or null if not present.
+
+STEP 2 — Calculate reportingDeadline and pastReportingLimit:
+The 7-year reporting clock begins 180 days after the DOFD. If dofd is known, calculate: reportingDeadline = DOFD + 180 days + 7 years, formatted as "MM/YYYY". Set pastReportingLimit to true if that deadline is before today's date. If dofd is null, set reportingDeadline to null and pastReportingLimit to false.
+
+STEP 3 — Classify disputeCategory using this decision tree (check in order, assign the first match):
+1. pastReportingLimit is true → "Obsolete (Past Reporting Limit)" — laws: ["FCRA §1681c"]
+2. Collection/charged-off account where the DOFD reported by the collector appears newer than the original creditor's last delinquency date → "Re-Aged Account" — laws: ["FCRA §1681c", "FCRA §1681s-2(a)(5)"]
+3. Account status contradicts another field: e.g., status is "Paid" or "Closed" but balance > $0, or account is "Closed" but still accruing charges → "Balance/Status Error" — laws: ["FCRA §1681e(b)", "FCRA §1681s-2(a)(1)"]
+4. Same underlying debt appears multiple times under different creditor names or account numbers → "Duplicate Entry" — laws: ["FCRA §1681e(b)"]
+5. Consumer's identifying info (name, SSN, address) does not match the account's reported owner → "Not Mine" — laws: ["FCRA §1681i"]
+6. Old debt sold to a collector where the original furnisher may no longer hold records (typically 2+ years since charge-off) → "Unverifiable Debt" — laws: ["FCRA §1681i(a)(1)", "FCRA §1681s-2(b)"]
+7. Account should be marked closed or paid-in-full based on report data but is still showing as open or delinquent → "Account Closed/Paid Incorrectly" — laws: ["FCRA §1681s-2(a)(1)"]
+8. Default for any other inaccuracy → "Inaccurate Information" — laws: ["FCRA §1681e(b)", "FCRA §1681i"]
+
+Set laws[] to ONLY the sections listed for that category above. Do not include unrelated statutes.
+
+STEP 4 — Set specificViolation as ONE concrete sentence describing the exact data problem. Include dates, balances, or field values from the report. Example: "Account shows DOFD of January 2015 and charge-off of July 2015; adding 180-day period and 7-year limit places the reporting deadline at approximately July 2022, making this item more than two years past the §1681c reporting limit."
+
+STEP 5 — Set disputeStrength:
+- "Strong" — Obsolete items, re-aged accounts, self-contradicting status/balance fields, duplicate entries. These are objective, documentable violations.
+- "Moderate" — Unverifiable old debt, incorrect payment dates, wrong account status where documentation exists.
+- "Weak" — "Not mine" claims without supporting evidence, generic inaccuracy disputes without specific data.
+
+stats: Count directly from the report. utilization is e.g. "34%". estimatedImprovement is a realistic point-gain range if disputes succeed.
+
+actionPlan[]: Concrete steps ordered High → Medium → Low → Positive. Reference actual accounts and applicable FCRA sections.
+
+disputeLetters[]: Write exactly three entries with bureau values "experian", "equifax", "transunion" (lowercase). Each letter must:
+- Open the first paragraph by naming the specific disputeCategory and citing the exact FCRA section that applies (NOT a generic opening)
+- For "Obsolete" items: state the DOFD, the calculated reporting deadline, and cite §1681c explicitly
+- For "Re-Aged Account" items: call out the DOFD discrepancy between original creditor and collector, cite §1681s-2(a)(5)
+- For "Unverifiable Debt": invoke §1681i(a)(1) and state that if the furnisher cannot verify within 30 days, the item must be deleted per §1681i(a)(5)(A)
+- For "Strong" disputes: close with a reference to consumer remedies under §1681n and §1681o
+- Reference specific account numbers and creditor names from the report
+- Be fully addressed and ready to mail — no placeholders or bracketed fields
 
 Never include the SSN in any field except the letter body where it appears as a standard identification line.`;
 
