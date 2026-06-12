@@ -46,6 +46,11 @@ export default function AnalyzePage() {
     try {
       const pdfText = await extractTextFromPDF(file!);
 
+      if (pdfText.trim().length < 500) {
+        setError('Your PDF appears to be image-based or unreadable. Please use a text-based PDF downloaded directly from AnnualCreditReport.com.');
+        return;
+      }
+
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
