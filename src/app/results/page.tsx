@@ -35,6 +35,9 @@ export default function ResultsPage() {
         <header className="topbar">
           <Brand />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button className="btn btn-ghost" style={{ fontSize: 14 }} onClick={() => router.push('/tracking')}>
+              <Icon name="check" size={15} /> Dispute Tracker
+            </button>
             <button className="btn btn-ghost" style={{ fontSize: 14 }} onClick={() => router.push('/analyze')}>
               <Icon name="refresh" size={15} /> New Analysis
             </button>
