@@ -123,6 +123,63 @@ export default function ResultsPage() {
             <SummaryCard summary={result.summary} stats={result.stats} />
           </div>
 
+          {/* Dispute Letters CTA — prominent link to /disputes */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => router.push('/disputes')}
+            onKeyDown={(e) => e.key === 'Enter' && router.push('/disputes')}
+            style={{
+              marginBottom: 16,
+              background: 'linear-gradient(135deg, #052e16 0%, #14532d 100%)',
+              borderRadius: 18,
+              padding: 'clamp(24px,3vw,36px) clamp(22px,3vw,40px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 24,
+              flexWrap: 'wrap',
+              cursor: 'pointer',
+              border: '1px solid #15803d',
+              transition: 'box-shadow .18s, transform .18s',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 40px rgba(22,163,74,0.25)';
+              (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+              (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: 14, background: 'rgba(255,255,255,0.12)',
+                display: 'grid', placeItems: 'center', flex: 'none', color: '#fff',
+              }}>
+                <Icon name="fileText" size={26} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 18, color: '#fff', marginBottom: 4 }}>
+                  View Dispute Letters
+                </div>
+                <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>
+                  {result.negativeItems.length} negative item{result.negativeItems.length !== 1 ? 's' : ''} — targeted letters for Experian, Equifax &amp; TransUnion, pre-filled with FCRA language.
+                </div>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: '#16a34a', color: '#fff',
+              borderRadius: 12, padding: '12px 22px',
+              fontWeight: 700, fontSize: 14.5, whiteSpace: 'nowrap',
+              boxShadow: '0 4px 16px rgba(22,163,74,0.35)',
+              flex: 'none',
+            }}>
+              View Dispute Letters →
+            </div>
+          </div>
+
           <DisputeLetters />
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, color: 'var(--muted)', fontSize: 12.8 }}>
