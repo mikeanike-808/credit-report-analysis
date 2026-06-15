@@ -16,10 +16,14 @@ function NegativeRow({ n, open, onToggle, last }: {
         <div><span className={'badge ' + n.priority.toLowerCase()}>{n.priority}</span></div>
         <div>
           <div style={{ fontWeight: 700, color: 'var(--ink)', fontSize: 14 }}>{n.creditor}</div>
-          <div style={{ color: 'var(--ink-3)', fontSize: 12.5, marginTop: 2 }}>Account #: {n.accountNumber}</div>
+          {n.accountNumber && n.accountNumber !== 'N/A' && (
+            <div style={{ color: 'var(--ink-3)', fontSize: 12.5, marginTop: 2 }}>Account #: {n.accountNumber}</div>
+          )}
         </div>
         <div style={{ color: 'var(--ink-2)', fontSize: 13.5 }}>{n.type}</div>
-        <div style={{ color: 'var(--ink-2)', fontSize: 13.5, fontWeight: 600 }} className="tnum">{n.balance}</div>
+        <div style={{ color: 'var(--ink-2)', fontSize: 13.5, fontWeight: 600 }} className="tnum">
+          {n.balance && n.balance !== 'N/A' ? n.balance : '—'}
+        </div>
         <div style={{ color: 'var(--ink-2)', fontSize: 13.5 }}>
           {n.status}<br />
           <span style={{ color: 'var(--ink-3)', fontSize: 12.5 }}>{n.dateReported}</span>

@@ -206,6 +206,7 @@ A2. Any address in the report that does NOT match the consumer's address in the 
 A3. Any employer listed that the consumer did not provide or does not recognize.
 
 For all Pass A items use these fixed values:
+  creditor = a short human-readable label for the specific error found, e.g. "Alternate Name: Chad E James" or "Unrecognized Address: 123 Main St, Casper WY" or "Unknown Employer: Acme Corp" — use the actual data from the report, never "N/A"
   type = "Personal Information"
   accountNumber = "N/A"
   balance = "N/A"

@@ -262,8 +262,8 @@ function ItemRow({ item, bureau, onView, isLast }: ItemRowProps) {
           </div>
           <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.4 }}>
             {item.type}
-            {item.accountNumber && <span> · #{item.accountNumber}</span>}
-            {item.balance && item.balance !== '$0' && item.balance !== '0' && <span> · {item.balance}</span>}
+            {item.accountNumber && item.accountNumber !== 'N/A' && <span> · #{item.accountNumber}</span>}
+            {item.balance && item.balance !== 'N/A' && item.balance !== '$0' && item.balance !== '0' && <span> · {item.balance}</span>}
           </div>
         </div>
         <button
