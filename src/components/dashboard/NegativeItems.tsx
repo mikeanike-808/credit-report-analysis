@@ -74,38 +74,61 @@ interface NegativeItemsProps {
 
 export function NegativeItems({ items }: NegativeItemsProps) {
   const [openRow, setOpenRow] = useState<number | null>(null);
+  const [sectionOpen, setSectionOpen] = useState(true);
 
   return (
     <section className="card" style={{ marginBottom: 16, padding: 0, overflow: 'hidden' }}>
-      <div style={{ padding: '20px 22px 12px', borderBottom: '1px solid var(--border-2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <h2 className="section-title">Errors</h2>
-          <span style={{ background: 'var(--red-bg)', color: 'var(--red)', borderRadius: 999, padding: '2px 10px', fontSize: 12.5, fontWeight: 700 }}>
-            {items.length}
-          </span>
-        </div>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--ink-3)' }}>
-          These errors are negatively impacting your credit scores.
-        </p>
-      </div>
-
-      <div className="neg-grid" style={{ padding: '10px 22px', background: '#f8fafd', borderBottom: '1px solid var(--border-2)' }}>
-        {['Priority', 'Account Details', 'Type', 'Balance', 'Status / Reported', 'Reason Flagged', 'Impact'].map((col) => (
-          <div key={col} style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--ink-3)', textTransform: 'uppercase' }}>
-            {col}
+      {/* Section header — click to collapse/expand the whole list */}
+      <button
+        onClick={() => setSectionOpen((v) => !v)}
+        style={{
+          width: '100%', textAlign: 'left', background: 'none', border: 'none',
+          borderBottom: sectionOpen ? '1px solid var(--border-2)' : 'none',
+          padding: '20px 22px 14px', cursor: 'pointer', display: 'flex',
+          alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2 className="section-title" style={{ margin: 0 }}>Errors</h2>
+            <span style={{ background: 'var(--red-bg)', color: 'var(--red)', borderRadius: 999, padding: '2px 10px', fontSize: 12.5, fontWeight: 700 }}>
+              {items.length}
+            </span>
           </div>
-        ))}
-      </div>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--ink-3)' }}>
+            These errors are negatively impacting your credit scores.
+          </p>
+        </div>
+        <svg
+          width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="var(--ink-3)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ flex: 'none', transition: 'transform .2s', transform: sectionOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
 
-      {items.map((n, i) => (
-        <NegativeRow
-          key={n.accountNumber + i}
-          n={n}
-          open={openRow === i}
-          onToggle={() => setOpenRow(openRow === i ? null : i)}
-          last={i === items.length - 1}
-        />
-      ))}
+      {sectionOpen && (
+        <>
+          <div className="neg-grid" style={{ padding: '10px 22px', background: '#f8fafd', borderBottom: '1px solid var(--border-2)' }}>
+            {['Priority', 'Account Details', 'Type', 'Balance', 'Status / Reported', 'Reason Flagged', 'Impact'].map((col) => (
+              <div key={col} style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--ink-3)', textTransform: 'uppercase' }}>
+                {col}
+              </div>
+            ))}
+          </div>
+
+          {items.map((n, i) => (
+            <NegativeRow
+              key={n.accountNumber + i}
+              n={n}
+              open={openRow === i}
+              onToggle={() => setOpenRow(openRow === i ? null : i)}
+              last={i === items.length - 1}
+            />
+          ))}
+        </>
+      )}
     </section>
   );
 }
