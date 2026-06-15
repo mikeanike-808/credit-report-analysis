@@ -26,7 +26,35 @@ export async function POST(req: NextRequest) {
     }
 
     const validated = await analyzeReport(pdfText, userInfo);
-    const result = { ...validated, completedAt: new Date().toISOString() };
+
+    // Normalize bureau keys to lowercase and ensure primaryBureau is valid.
+    // The AI may return "Experian" instead of "experian"; this corrects it deterministically.
+    const VALID_BUREAUS = ['experian', 'equifax', 'transunion'];
+    const normalizedItems = validated.negativeItems.map((item) => {
+      const normalizedBureaus = item.bureaus
+        .map((b) => b.toLowerCase())
+        .filter((b) => VALID_BUREAUS.includes(b));
+      // If normalization emptied the array, default to experian
+      const safeBureaus = normalizedBureaus.length > 0 ? normalizedBureaus : ['experian'];
+      const normalizedPrimary = item.primaryBureau.toLowerCase();
+      // primaryBureau must be a value that actually appears in bureaus[]
+      const safePrimary = safeBureaus.includes(normalizedPrimary)
+        ? normalizedPrimary
+        : safeBureaus[0]!;
+      return { ...item, bureaus: safeBureaus, primaryBureau: safePrimary };
+    });
+
+    // Override negativeItemCount so it always matches the actual array length.
+    // The AI sets this independently and it can drift from negativeItems.length.
+    const result = {
+      ...validated,
+      negativeItems: normalizedItems,
+      completedAt: new Date().toISOString(),
+      stats: {
+        ...validated.stats,
+        negativeItemCount: normalizedItems.length,
+      },
+    };
     return NextResponse.json({ success: true, result });
 
   } catch (err) {
