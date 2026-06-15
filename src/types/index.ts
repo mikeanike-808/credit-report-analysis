@@ -115,8 +115,4 @@ export interface AnalysisResult {
     /** e.g. "50–120" */
     estimatedImprovement: string;
   };
-  disputeLetters: {
-    bureau: string;
-    body: string;
-  }[];
 }

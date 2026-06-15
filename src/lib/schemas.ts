@@ -52,11 +52,6 @@ const ActionItemSchema = z.object({
   impact: z.enum(['High', 'Medium', 'Low', 'Positive']),
 });
 
-const DisputeLetterSchema = z.object({
-  bureau: z.string(),
-  body: z.string(),
-});
-
 export const AnalysisResultSchema = z.object({
   summary: z.string(),
   scores: z.array(CreditScoreSchema),
@@ -77,7 +72,6 @@ export const AnalysisResultSchema = z.object({
     utilization: z.string(),
     estimatedImprovement: z.string(),
   }),
-  disputeLetters: z.array(DisputeLetterSchema),
 });
 
 export type ValidatedAnalysisResult = z.infer<typeof AnalysisResultSchema>;

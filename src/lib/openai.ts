@@ -13,7 +13,7 @@ const ANALYSIS_JSON_SCHEMA = {
   additionalProperties: false,
   required: [
     'summary', 'scores', 'overall', 'strengths', 'weaknesses',
-    'negativeItems', 'actionPlan', 'stats', 'disputeLetters',
+    'negativeItems', 'actionPlan', 'stats',
   ],
   properties: {
     summary: { type: 'string' },
@@ -118,18 +118,6 @@ const ANALYSIS_JSON_SCHEMA = {
         estimatedImprovement: { type: 'string' },
       },
     },
-    disputeLetters: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['bureau', 'body'],
-        properties: {
-          bureau: { type: 'string' },
-          body: { type: 'string' },
-        },
-      },
-    },
   },
 };
 
@@ -153,7 +141,7 @@ export async function analyzeReport(
   const response = await client.chat.completions.create({
     model: 'gpt-4o',
     temperature: 0.2,
-    max_tokens: 8192,
+    max_tokens: 16384,
     response_format: {
       type: 'json_schema',
       json_schema: {
@@ -230,16 +218,7 @@ stats: Count directly from the report. utilization is e.g. "34%". estimatedImpro
 
 actionPlan[]: Concrete steps ordered High → Medium → Low → Positive. Reference actual accounts and applicable FCRA sections.
 
-disputeLetters[]: Write exactly three entries with bureau values "experian", "equifax", "transunion" (lowercase). Each letter must:
-- Open the first paragraph by naming the specific disputeCategory and citing the exact FCRA section that applies (NOT a generic opening)
-- For "Obsolete" items: state the DOFD, the calculated reporting deadline, and cite §1681c explicitly
-- For "Re-Aged Account" items: call out the DOFD discrepancy between original creditor and collector, cite §1681s-2(a)(5)
-- For "Unverifiable Debt": invoke §1681i(a)(1) and state that if the furnisher cannot verify within 30 days, the item must be deleted per §1681i(a)(5)(A)
-- For "Strong" disputes: close with a reference to consumer remedies under §1681n and §1681o
-- Reference specific account numbers and creditor names from the report
-- Be fully addressed and ready to mail — no placeholders or bracketed fields
-
-Never include the SSN in any field except the letter body where it appears as a standard identification line.`;
+Never include the SSN in any field of the JSON output.`;
 
 function buildUserPrompt(
   pdfText: string,
@@ -260,5 +239,5 @@ SSN: ${sanitizeField(ssn)}
 ${pdfText}
 --- CREDIT REPORT END ---
 
-Produce all fields. Write three complete dispute letters (experian, equifax, transunion) referencing specific accounts from this report and citing FCRA/FDCPA sections. Letters must be fully addressed from the subject above and ready to send.`;
+Produce all fields. Be exhaustive — list every negative item found in the report. Do not truncate or summarize the negativeItems array.`;
 }
