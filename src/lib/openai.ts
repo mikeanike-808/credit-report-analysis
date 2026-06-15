@@ -50,7 +50,7 @@ const ANALYSIS_JSON_SCHEMA = {
         required: [
           'priority', 'creditor', 'accountNumber', 'type', 'balance',
           'status', 'dateReported', 'reasons', 'impact', 'impactPoints',
-          'laws', 'recommendedAction', 'bureaus',
+          'laws', 'recommendedAction', 'bureaus', 'primaryBureau',
           'disputeCategory', 'dofd', 'reportingDeadline', 'pastReportingLimit',
           'disputeStrength', 'specificViolation',
         ],
@@ -68,6 +68,7 @@ const ANALYSIS_JSON_SCHEMA = {
           laws: { type: 'array', items: { type: 'string' } },
           recommendedAction: { type: 'string' },
           bureaus: { type: 'array', items: { type: 'string' } },
+          primaryBureau: { type: 'string' },
           disputeCategory: {
             type: 'string',
             enum: [
@@ -79,6 +80,9 @@ const ANALYSIS_JSON_SCHEMA = {
               'Re-Aged Account',
               'Duplicate Entry',
               'Account Closed/Paid Incorrectly',
+              'Unauthorized Inquiry',
+              'Late Payment Error',
+              'Collection Not Validated',
             ],
           },
           dofd: { anyOf: [{ type: 'string' }, { type: 'null' }] },
@@ -183,35 +187,48 @@ overall.health: Integer 0–100 reflecting credit health. Weight payment history
 
 overall.rating: Same rating scale as scores.
 
-negativeItems[]: List every collection, charge-off, late payment (30/60/90+ days), judgment, lien, repossession, or bankruptcy. Be exhaustive. Set impactPoints as a string like "-30–50 pts".
+negativeItems[]: CRITICAL — be exhaustive. Include ALL of the following as separate items:
+- Every collection account (each separate collection agency = separate item)
+- Every charge-off (each creditor = separate item)
+- Every individual late payment event (a 30-day and a 60-day on the same account = TWO items)
+- Every judgment, lien, repossession, bankruptcy
+- Every hard inquiry that appears unrecognized, unauthorized, or questionable
+- Every medical debt in collections
+Do NOT collapse multiple late payments on one account into a single item. Do NOT skip inquiries. Do NOT skip items just because they seem accurate — list everything disputable.
+Set impactPoints as a string like "-30–50 pts".
 
-bureaus[]: Set ONLY to the bureau keys ("experian", "equifax", "transunion") where that specific account explicitly appears. Do NOT default all items to all three bureaus. This drives which dispute letters are shown, so accuracy is critical.
+bureaus[]: Set ONLY to the bureau keys ("experian", "equifax", "transunion") where that specific account explicitly appears. Do NOT default all items to all three bureaus.
+
+primaryBureau: Set to the SINGLE bureau key where this dispute should be sent — choose the bureau where the inaccuracy is most clearly documented, the data is most problematic, or where a removal is most likely to succeed. Must be one of: "experian", "equifax", "transunion". Must be a value already in bureaus[].
 
 For each negative item, apply the following FCRA classification logic in order:
 
 STEP 1 — Extract dofd (Date of First Delinquency):
-Look for fields labeled "Date of First Delinquency", "DOFD", "Original Delinquency Date", or derive it from the original missed-payment date. Set dofd to the date string found, or null if not present.
+Look for fields labeled "Date of First Delinquency", "DOFD", "Original Delinquency Date", or derive it from the original missed-payment date. Set dofd to the date string found, or null if not present. For hard inquiries, set dofd to null.
 
 STEP 2 — Calculate reportingDeadline and pastReportingLimit:
 The 7-year reporting clock begins 180 days after the DOFD. If dofd is known, calculate: reportingDeadline = DOFD + 180 days + 7 years, formatted as "MM/YYYY". Set pastReportingLimit to true if that deadline is before today's date. If dofd is null, set reportingDeadline to null and pastReportingLimit to false.
 
 STEP 3 — Classify disputeCategory using this decision tree (check in order, assign the first match):
+0. Item is a hard inquiry and the consumer may not recognize the lender or did not apply for credit there → "Unauthorized Inquiry" — laws: ["FCRA §1681b"]
 1. pastReportingLimit is true → "Obsolete (Past Reporting Limit)" — laws: ["FCRA §1681c"]
 2. Collection/charged-off account where the DOFD reported by the collector appears newer than the original creditor's last delinquency date → "Re-Aged Account" — laws: ["FCRA §1681c", "FCRA §1681s-2(a)(5)"]
-3. Account status contradicts another field: e.g., status is "Paid" or "Closed" but balance > $0, or account is "Closed" but still accruing charges → "Balance/Status Error" — laws: ["FCRA §1681e(b)", "FCRA §1681s-2(a)(1)"]
+3. Account status contradicts another field: e.g., status is "Paid" or "Closed" but balance > $0 → "Balance/Status Error" — laws: ["FCRA §1681e(b)", "FCRA §1681s-2(a)(1)"]
 4. Same underlying debt appears multiple times under different creditor names or account numbers → "Duplicate Entry" — laws: ["FCRA §1681e(b)"]
 5. Consumer's identifying info (name, SSN, address) does not match the account's reported owner → "Not Mine" — laws: ["FCRA §1681i"]
-6. Old debt sold to a collector where the original furnisher may no longer hold records (typically 2+ years since charge-off) → "Unverifiable Debt" — laws: ["FCRA §1681i(a)(1)", "FCRA §1681s-2(b)"]
-7. Account should be marked closed or paid-in-full based on report data but is still showing as open or delinquent → "Account Closed/Paid Incorrectly" — laws: ["FCRA §1681s-2(a)(1)"]
-8. Default for any other inaccuracy → "Inaccurate Information" — laws: ["FCRA §1681e(b)", "FCRA §1681i"]
+6. Collection account where the debt collector has not provided debt validation under FDCPA §1692g, or the underlying account records cannot be verified → "Collection Not Validated" — laws: ["FCRA §1681s-2(b)", "FDCPA §1692g"]
+7. Old debt sold to a collector where the original furnisher may no longer hold records (typically 2+ years since charge-off) → "Unverifiable Debt" — laws: ["FCRA §1681i(a)(1)", "FCRA §1681s-2(b)"]
+8. A late payment date, amount, or days-late value appears incorrect relative to other report data → "Late Payment Error" — laws: ["FCRA §1681e(b)", "FCRA §1681s-2(a)(1)"]
+9. Account should be marked closed or paid-in-full based on report data but is still showing as open or delinquent → "Account Closed/Paid Incorrectly" — laws: ["FCRA §1681s-2(a)(1)"]
+10. Default for any other inaccuracy → "Inaccurate Information" — laws: ["FCRA §1681e(b)", "FCRA §1681i"]
 
 Set laws[] to ONLY the sections listed for that category above. Do not include unrelated statutes.
 
-STEP 4 — Set specificViolation as ONE concrete sentence describing the exact data problem. Include dates, balances, or field values from the report. Example: "Account shows DOFD of January 2015 and charge-off of July 2015; adding 180-day period and 7-year limit places the reporting deadline at approximately July 2022, making this item more than two years past the §1681c reporting limit."
+STEP 4 — Set specificViolation as ONE concrete sentence describing the exact data problem. Include dates, balances, or field values from the report.
 
 STEP 5 — Set disputeStrength:
-- "Strong" — Obsolete items, re-aged accounts, self-contradicting status/balance fields, duplicate entries. These are objective, documentable violations.
-- "Moderate" — Unverifiable old debt, incorrect payment dates, wrong account status where documentation exists.
+- "Strong" — Obsolete items, re-aged accounts, self-contradicting status/balance fields, duplicate entries, unauthorized inquiries with no recognizable lender. These are objective, documentable violations.
+- "Moderate" — Unverifiable old debt, collection not validated, incorrect payment dates, late payment errors with supporting data.
 - "Weak" — "Not mine" claims without supporting evidence, generic inaccuracy disputes without specific data.
 
 stats: Count directly from the report. utilization is e.g. "34%". estimatedImprovement is a realistic point-gain range if disputes succeed.

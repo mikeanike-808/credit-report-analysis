@@ -59,6 +59,27 @@ const categoryOpener: Record<DisputeCategory, (item: NegativeItem) => string> = 
       ? `Specifically: ${item.specificViolation}`
       : `The information as reported does not accurately reflect the true status or history of this account.`) +
     ` I am requesting a full reinvestigation under §1681i(a)(1).`,
+
+  'Unauthorized Inquiry': (item) =>
+    `I am disputing a hard inquiry appearing on my credit report from ${item.creditor} under FCRA §1681b, which restricts access to consumer credit files to parties with a permissible purpose. ` +
+    (item.specificViolation
+      ? `Specifically: ${item.specificViolation}`
+      : `I did not authorize this inquiry and have no record of applying for credit, employment, or any other transaction with this entity that would constitute a permissible purpose under §1681b(a).`) +
+    ` Under 15 U.S.C. §1681b and §1681e(b), any inquiry made without a permissible purpose must be immediately removed from my credit file.`,
+
+  'Late Payment Error': (item) =>
+    `This account contains an inaccurate late payment entry in violation of FCRA §1681e(b) and §1681s-2(a)(1), which require furnishers to report only accurate and verifiable information. ` +
+    (item.specificViolation
+      ? `Specifically: ${item.specificViolation}`
+      : `The late payment date, days-past-due value, or payment status as reported is inconsistent with the account history shown elsewhere in this report.`) +
+    ` Under the maximum possible accuracy standard, any unverifiable or contradictory late payment entry must be corrected or deleted.`,
+
+  'Collection Not Validated': (item) =>
+    `I am formally disputing this collection account under FCRA §1681s-2(b) and FDCPA §1692g. ` +
+    (item.specificViolation
+      ? `Specifically: ${item.specificViolation}`
+      : `I have not received adequate debt validation from ${item.creditor} demonstrating that this debt is valid, that the amount claimed is accurate, and that this party has the legal right to collect it.`) +
+    ` Under FDCPA §1692g(b), reporting a debt that has not been validated upon request is a violation of consumer rights. Under FCRA §1681s-2(b), the furnisher is required to investigate and certify the completeness and accuracy of all reported information. If this debt cannot be fully validated, it must be deleted from my credit file immediately.`,
 };
 
 export function buildLetter(

@@ -400,14 +400,13 @@ export default function DisputesPage() {
     if (!result) router.replace('/analyze');
   }, [result, router]);
 
-  // Group negative items by bureau — each item only appears under bureaus it's actually reported on
+  // Group by primaryBureau — each item appears in exactly ONE column, no duplicates
   const byBureau = useMemo(() => {
     if (!result) return {} as Record<string, NegativeItem[]>;
-    const map: Record<string, NegativeItem[]> = {};
-    for (const bureau of BUREAUS) {
-      map[bureau.key] = result.negativeItems.filter((item) =>
-        item.bureaus.includes(bureau.key)
-      );
+    const map: Record<string, NegativeItem[]> = { experian: [], equifax: [], transunion: [] };
+    for (const item of result.negativeItems) {
+      const key = item.primaryBureau in map ? item.primaryBureau : (item.bureaus[0] ?? 'experian');
+      (map[key] ??= []).push(item);
     }
     return map;
   }, [result]);

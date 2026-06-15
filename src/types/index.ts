@@ -20,7 +20,10 @@ export type DisputeCategory =
   | 'Unverifiable Debt'
   | 'Re-Aged Account'
   | 'Duplicate Entry'
-  | 'Account Closed/Paid Incorrectly';
+  | 'Account Closed/Paid Incorrectly'
+  | 'Unauthorized Inquiry'
+  | 'Late Payment Error'
+  | 'Collection Not Validated';
 
 export interface CreditScore {
   bureau: string;
@@ -43,6 +46,8 @@ export interface NegativeItem {
   recommendedAction: string;
   /** Which bureaus actually report this item — only the ones present in the report */
   bureaus: string[];
+  /** The single bureau to target first — chosen by AI as where the inaccuracy is most clearly documented */
+  primaryBureau: string;
   /** FCRA-based category classifying why this item is disputable */
   disputeCategory: DisputeCategory;
   /** Date of First Delinquency extracted from the report (null if not found) */

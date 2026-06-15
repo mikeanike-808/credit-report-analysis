@@ -22,6 +22,9 @@ const DISPUTE_CATEGORIES = [
   'Re-Aged Account',
   'Duplicate Entry',
   'Account Closed/Paid Incorrectly',
+  'Unauthorized Inquiry',
+  'Late Payment Error',
+  'Collection Not Validated',
 ] as const;
 
 const NegativeItemSchema = z.object({
@@ -38,6 +41,7 @@ const NegativeItemSchema = z.object({
   laws: z.array(z.string()),
   recommendedAction: z.string(),
   bureaus: z.array(z.string()),
+  primaryBureau: z.string(),
   disputeCategory: z.enum(DISPUTE_CATEGORIES),
   dofd: z.string().nullable(),
   reportingDeadline: z.string().nullable(),
