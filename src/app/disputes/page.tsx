@@ -400,13 +400,16 @@ export default function DisputesPage() {
     if (!result) router.replace('/analyze');
   }, [result, router]);
 
-  // Group by primaryBureau — each item appears in exactly ONE column, no duplicates
+  // Group by primaryBureau — each item appears in exactly ONE column, no duplicates.
+  // Normalize to lowercase because the AI may return "Experian" instead of "experian".
   const byBureau = useMemo(() => {
     if (!result) return {} as Record<string, NegativeItem[]>;
     const map: Record<string, NegativeItem[]> = { experian: [], equifax: [], transunion: [] };
     for (const item of result.negativeItems) {
-      const key = item.primaryBureau in map ? item.primaryBureau : (item.bureaus[0] ?? 'experian');
-      (map[key] ??= []).push(item);
+      const pb = (item.primaryBureau ?? '').toLowerCase();
+      const fb = (item.bureaus[0] ?? '').toLowerCase();
+      const key = pb in map ? pb : (fb in map ? fb : 'experian');
+      map[key].push(item);
     }
     return map;
   }, [result]);
@@ -417,7 +420,8 @@ export default function DisputesPage() {
   const openLetter = (item: NegativeItem, bureau: Bureau) => {
     if (!result || !userInfo) return;
     const itemsForBureau = result.negativeItems.filter(
-      (n) => n.creditor === item.creditor && n.bureaus.includes(bureau.key)
+      (n) => n.creditor === item.creditor &&
+        n.bureaus.map((b) => b.toLowerCase()).includes(bureau.key)
     );
     const body = buildCreditorLetter(bureau, item.creditor, itemsForBureau, userInfo, result.completedAt);
     setModal({ bureau, item, body });
