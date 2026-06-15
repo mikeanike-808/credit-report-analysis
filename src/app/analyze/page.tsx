@@ -100,7 +100,7 @@ export default function AnalyzePage() {
               </p>
             </div>
             <div style={{
-              background: 'var(--blue-tintbg)', border: '1px solid #d9e4ff', borderRadius: 14,
+              background: 'var(--blue-tintbg)', border: '1px solid #bbf7d0', borderRadius: 14,
               padding: '16px 18px', maxWidth: 290, color: 'var(--ink-2)', fontSize: 13.2, lineHeight: 1.55,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--blue-ink)', fontWeight: 700, marginBottom: 6 }}>
@@ -114,6 +114,35 @@ export default function AnalyzePage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <PersonalInfoForm form={form} onChange={handleFormChange} touched={touched} />
 
+            {/* SmartCredit callout */}
+            <div style={{
+              background: 'var(--blue-tintbg)', border: '1px solid #bbf7d0', borderRadius: 14,
+              padding: '18px 20px', display: 'flex', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap',
+            }}>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontWeight: 700, color: 'var(--blue-ink)', fontSize: 14, marginBottom: 5 }}>
+                  📋 Don&rsquo;t have your credit report yet?
+                </div>
+                <p style={{ margin: 0, color: 'var(--ink-2)', fontSize: 13.2, lineHeight: 1.55 }}>
+                  Get your free tri-bureau report from SmartCredit — download the PDF, then upload it below. Takes under 5 minutes.
+                </p>
+              </div>
+              <a
+                href="https://www.smartcredit.com/join/?pid=78020"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  background: 'var(--blue)', color: '#fff', borderRadius: 9,
+                  padding: '10px 18px', fontSize: 13.5, fontWeight: 700,
+                  textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,
+                  transition: 'background .15s',
+                }}
+              >
+                Get Free Report at SmartCredit →
+              </a>
+            </div>
+
             {/* Section 2: Upload */}
             <section className="card" style={{ padding: 'clamp(18px,2.4vw,28px)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 4 }}>
@@ -125,7 +154,7 @@ export default function AnalyzePage() {
                 </h2>
               </div>
               <p style={{ margin: '6px 0 16px', color: 'var(--ink-3)', fontSize: 13.5 }}>
-                Upload your credit report PDF. Get a free annual report at{' '}
+                Upload your credit report PDF from SmartCredit or{' '}
                 <a href="https://www.annualcreditreport.com" target="_blank" rel="noopener noreferrer"
                   style={{ color: 'var(--blue)', fontWeight: 600, textDecoration: 'none' }}>
                   AnnualCreditReport.com

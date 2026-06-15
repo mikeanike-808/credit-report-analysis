@@ -201,7 +201,7 @@ export function DisputeLetters() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                   <div style={{
                     width: 38, height: 38, borderRadius: 10,
-                    background: 'var(--blue-tintbg)', border: '1px solid #d9e4ff',
+                    background: 'var(--blue-tintbg)', border: '1px solid #bbf7d0',
                     display: 'grid', placeItems: 'center', flex: 'none',
                   }}>
                     <Icon name="file" size={18} stroke={2} />

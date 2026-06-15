@@ -5,14 +5,14 @@ const IMPACT_COLOR: Record<string, string> = {
   High:     '#dc2626',
   Medium:   '#b45309',
   Low:      '#16a34a',
-  Positive: '#2563eb',
+  Positive: '#16a34a',
 };
 
 const IMPACT_BG: Record<string, string> = {
   High:     '#fde8e8',
   Medium:   '#fdf0d5',
   Low:      '#dcfce7',
-  Positive: '#eef3ff',
+  Positive: '#f0fdf4',
 };
 
 function ActionBadge({ impact }: { impact: string }) {

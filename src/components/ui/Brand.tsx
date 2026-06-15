@@ -22,7 +22,7 @@ export function Brand() {
   return (
     <div className="brand">
       <BrandLogo />
-      <span className="brand-name">CREDIT REPORT AI ANALYZER</span>
+      <span className="brand-name">DISPUTEGATOR</span>
     </div>
   );
 }

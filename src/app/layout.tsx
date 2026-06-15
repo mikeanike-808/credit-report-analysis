@@ -4,8 +4,8 @@ import { AnalysisProvider } from '@/context/AnalysisContext';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Credit Report AI Analyzer',
-  description: 'AI-powered credit report analysis and dispute letter generation.',
+  title: 'DisputeGator — Take A Bite Out Of Bad Credit™',
+  description: 'AI-powered credit report analysis, FCRA dispute letters, and personalized action plans across all three bureaus.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

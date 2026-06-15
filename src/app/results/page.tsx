@@ -67,9 +67,9 @@ export default function ResultsPage() {
           {!isSignedIn && (
             <div style={{
               marginBottom: 24,
-              border: '1px solid #d9e4ff',
+              border: '1px solid #bbf7d0',
               borderRadius: 16,
-              background: 'linear-gradient(135deg, #f0f5ff 0%, #f8faff 100%)',
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #f8faff 100%)',
               padding: 'clamp(20px,3vw,32px)',
               display: 'flex',
               alignItems: 'center',
@@ -79,7 +79,7 @@ export default function ResultsPage() {
             }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                 <div style={{
-                  width: 44, height: 44, borderRadius: 12, background: '#dbeafe',
+                  width: 44, height: 44, borderRadius: 12, background: '#dcfce7',
                   display: 'grid', placeItems: 'center', flex: 'none',
                 }}>
                   <Icon name="shield" size={22} />
