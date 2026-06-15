@@ -310,6 +310,7 @@ interface BureauColumnProps {
 }
 
 function BureauColumn({ bureau, items, onView }: BureauColumnProps) {
+  const [open, setOpen] = useState(true);
   const highCount = items.filter((i) => i.priority === 'High').length;
   const strongCount = items.filter((i) => i.disputeStrength === 'Strong').length;
 
@@ -319,21 +320,32 @@ function BureauColumn({ bureau, items, onView }: BureauColumnProps) {
       border: '1px solid var(--border)', borderRadius: 14,
       overflow: 'hidden', display: 'flex', flexDirection: 'column',
     }}>
-      {/* Bureau header */}
+      {/* Bureau header — click anywhere to toggle */}
       <div style={{ borderTop: `4px solid ${bureau.color}` }}>
-        <div style={{
-          padding: '16px 18px 14px',
-          background: bureau.color + '0d',
-          borderBottom: '1px solid var(--border-2)',
-        }}>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            width: '100%', textAlign: 'left', background: bureau.color + '0d',
+            border: 'none', borderBottom: open ? '1px solid var(--border-2)' : 'none',
+            padding: '16px 18px 14px', cursor: 'pointer',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <BureauMark bureau={bureau} size={34} />
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ink)' }}>{bureau.name}</div>
               <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 1 }}>
                 {items.length} dispute{items.length !== 1 ? 's' : ''}
               </div>
             </div>
+            {/* Chevron */}
+            <svg
+              width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="var(--ink-3)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ flex: 'none', transition: 'transform .2s', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </div>
 
           {/* Mini stats */}
@@ -360,27 +372,29 @@ function BureauColumn({ bureau, items, onView }: BureauColumnProps) {
               </span>
             )}
           </div>
-        </div>
+        </button>
       </div>
 
-      {/* Items list */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {items.length === 0 ? (
-          <div style={{ padding: '32px 18px', textAlign: 'center', color: 'var(--ink-4)', fontSize: 13 }}>
-            No negative items reported to {bureau.name}
-          </div>
-        ) : (
-          items.map((item, idx) => (
-            <ItemRow
-              key={`${item.creditor}-${item.accountNumber}-${idx}`}
-              item={item}
-              bureau={bureau}
-              onView={(i) => onView(i, bureau)}
-              isLast={idx === items.length - 1}
-            />
-          ))
-        )}
-      </div>
+      {/* Items list — hidden when collapsed */}
+      {open && (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {items.length === 0 ? (
+            <div style={{ padding: '32px 18px', textAlign: 'center', color: 'var(--ink-4)', fontSize: 13 }}>
+              No negative items reported to {bureau.name}
+            </div>
+          ) : (
+            items.map((item, idx) => (
+              <ItemRow
+                key={`${item.creditor}-${item.accountNumber}-${idx}`}
+                item={item}
+                bureau={bureau}
+                onView={(i) => onView(i, bureau)}
+                isLast={idx === items.length - 1}
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
