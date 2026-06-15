@@ -11,7 +11,6 @@ import { StrengthsWeaknesses } from '@/components/dashboard/StrengthsWeaknesses'
 import { NegativeItems } from '@/components/dashboard/NegativeItems';
 import { ActionPlan } from '@/components/dashboard/ActionPlan';
 import { SummaryCard } from '@/components/dashboard/SummaryCard';
-import { DisputeLetters } from '@/components/dashboard/DisputeLetters';
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -179,8 +178,6 @@ export default function ResultsPage() {
               View Dispute Letters →
             </div>
           </div>
-
-          <DisputeLetters />
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, color: 'var(--muted)', fontSize: 12.8 }}>
             <Icon name="lock" size={14} /> Your data is never stored. Everything is processed in real-time and discarded after your session.

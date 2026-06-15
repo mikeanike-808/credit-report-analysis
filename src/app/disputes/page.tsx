@@ -244,32 +244,50 @@ interface ItemRowProps {
 }
 
 function ItemRow({ item, bureau, onView, isLast }: ItemRowProps) {
+  const priorityColor = item.priority === 'High' ? '#dc2626' : item.priority === 'Medium' ? '#b45309' : '#16a34a';
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
       padding: '13px 18px',
       borderBottom: isLast ? 'none' : '1px solid var(--border-2)',
     }}>
-      {/* Priority dot */}
-      <div style={{
-        width: 8, height: 8, borderRadius: '50%', flex: 'none',
-        background: item.priority === 'High' ? '#dc2626' : item.priority === 'Medium' ? '#b45309' : '#16a34a',
-      }} />
-
-      {/* Account info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {item.creditor}
+      {/* Row 1: priority dot + full-width creditor name + eye button */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{
+          width: 8, height: 8, borderRadius: '50%', flex: 'none', marginTop: 5,
+          background: priorityColor,
+        }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--ink)', wordBreak: 'break-word', lineHeight: 1.35 }}>
+            {item.creditor}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.4 }}>
+            {item.type}
+            {item.accountNumber && <span> · #{item.accountNumber}</span>}
+            {item.balance && item.balance !== '$0' && item.balance !== '0' && <span> · {item.balance}</span>}
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span>{item.type}</span>
-          {item.accountNumber && <span>· #{item.accountNumber}</span>}
-          {item.balance && item.balance !== '$0' && item.balance !== '0' && <span>· {item.balance}</span>}
-        </div>
+        <button
+          onClick={() => onView(item)}
+          title="View dispute letter"
+          style={{
+            width: 32, height: 32, borderRadius: 8, flex: 'none',
+            display: 'grid', placeItems: 'center',
+            background: 'var(--blue-tintbg)', border: `1px solid ${bureau.color}33`,
+            color: bureau.color, cursor: 'pointer',
+            transition: 'background .14s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = bureau.color + '22')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--blue-tintbg)')}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
       </div>
 
-      {/* Category + strength */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      {/* Row 2: category + strength badges */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8, paddingLeft: 18 }}>
         <span style={{
           fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
           background: 'var(--blue-tintbg)', color: 'var(--blue-ink)',
@@ -279,27 +297,6 @@ function ItemRow({ item, bureau, onView, isLast }: ItemRowProps) {
         </span>
         <StrengthBadge strength={item.disputeStrength} />
       </div>
-
-      {/* Eye button */}
-      <button
-        onClick={() => onView(item)}
-        title="View dispute letter"
-        style={{
-          width: 34, height: 34, borderRadius: 8, flex: 'none',
-          display: 'grid', placeItems: 'center',
-          background: 'var(--blue-tintbg)', border: `1px solid ${bureau.color}33`,
-          color: bureau.color, cursor: 'pointer',
-          transition: 'background .14s',
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = bureau.color + '22')}
-        onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--blue-tintbg)')}
-      >
-        {/* Eye icon */}
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-      </button>
     </div>
   );
 }
