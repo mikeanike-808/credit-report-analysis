@@ -25,6 +25,8 @@ const DISPUTE_CATEGORIES = [
   'Unauthorized Inquiry',
   'Late Payment Error',
   'Collection Not Validated',
+  'Personal Information Error',
+  'Cross-Bureau Inconsistency',
 ] as const;
 
 const NegativeItemSchema = z.object({

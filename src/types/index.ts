@@ -23,7 +23,9 @@ export type DisputeCategory =
   | 'Account Closed/Paid Incorrectly'
   | 'Unauthorized Inquiry'
   | 'Late Payment Error'
-  | 'Collection Not Validated';
+  | 'Collection Not Validated'
+  | 'Personal Information Error'
+  | 'Cross-Bureau Inconsistency';
 
 export interface CreditScore {
   bureau: string;

@@ -80,6 +80,20 @@ const categoryOpener: Record<DisputeCategory, (item: NegativeItem) => string> = 
       ? `Specifically: ${item.specificViolation}`
       : `I have not received adequate debt validation from ${item.creditor} demonstrating that this debt is valid, that the amount claimed is accurate, and that this party has the legal right to collect it.`) +
     ` Under FDCPA §1692g(b), reporting a debt that has not been validated upon request is a violation of consumer rights. Under FCRA §1681s-2(b), the furnisher is required to investigate and certify the completeness and accuracy of all reported information. If this debt cannot be fully validated, it must be deleted from my credit file immediately.`,
+
+  'Personal Information Error': (item) =>
+    `I am disputing inaccurate personal identifying information appearing in my credit file in violation of FCRA §1681e(b) and §1681i. ` +
+    (item.specificViolation
+      ? `Specifically: ${item.specificViolation}`
+      : `My credit file contains personal information — such as a name, address, or employer — that does not belong to me, suggesting a mixed file or data furnisher error.`) +
+    ` Under 15 U.S.C. §1681e(b), credit reporting agencies must follow reasonable procedures to assure maximum possible accuracy of the information in consumer reports. Inaccurate personal identifiers can cause accounts belonging to other individuals to be associated with my file. I request that you immediately investigate and remove this incorrect information from my credit report, and audit my file for any accounts that may have been mixed in as a result.`,
+
+  'Cross-Bureau Inconsistency': (item) =>
+    `I am disputing a material inconsistency in the reporting of this account across credit bureaus, in violation of FCRA §1681e(b) and §1681i(a)(4). ` +
+    (item.specificViolation
+      ? `Specifically: ${item.specificViolation}`
+      : `This account is reported with materially different information across two or more bureaus — including discrepancies in account status, Last Activity date, balance, or remarks — indicating that the data being furnished is inaccurate or unverifiable.`) +
+    ` Under 15 U.S.C. §1681e(b), credit reporting agencies are required to maintain reasonable procedures to assure the maximum possible accuracy of reported information. Under §1681i(a)(4), when a consumer disputes the completeness or accuracy of any item, the agency must forward the dispute to the furnisher and review all relevant information submitted. Inconsistent reporting across bureaus for the same account is itself evidence of inaccuracy. I request that you conduct a full reinvestigation, correct the discrepancy, and update my credit file to reflect only accurate and verifiable information.`,
 };
 
 export function buildLetter(

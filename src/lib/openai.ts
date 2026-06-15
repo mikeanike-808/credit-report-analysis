@@ -83,6 +83,8 @@ const ANALYSIS_JSON_SCHEMA = {
               'Unauthorized Inquiry',
               'Late Payment Error',
               'Collection Not Validated',
+              'Personal Information Error',
+              'Cross-Bureau Inconsistency',
             ],
           },
           dofd: { anyOf: [{ type: 'string' }, { type: 'null' }] },
@@ -170,72 +172,113 @@ export async function analyzeReport(
   return AnalysisResultSchema.parse(parsed);
 }
 
-const SYSTEM_PROMPT = `You are an expert credit analyst and consumer rights attorney specializing in FCRA disputes. You analyze credit reports and produce structured JSON output.
+const SYSTEM_PROMPT = `You are an expert credit analyst and consumer rights attorney specializing in FCRA disputes. You analyze credit reports and produce structured JSON output. Your goal is to identify EVERY disputable item — do not stop early, do not summarize groups into one item, do not skip anything.
 
 You have deep, precise knowledge of:
 - Fair Credit Reporting Act (FCRA), 15 U.S.C. § 1681 et seq.
 - Fair Debt Collection Practices Act (FDCPA), 15 U.S.C. § 1692 et seq.
 - Equal Credit Opportunity Act (ECOA), 15 U.S.C. § 1691 et seq.
 - Metro 2 credit reporting format and common furnisher errors
-- Dispute processes for Experian, Equifax, and TransUnion
 
 Field guidelines:
 
-scores[]: Extract all bureau scores from the report. Include entries for all three bureaus (experian, equifax, transunion). Set score to null if not found. Rating values: "Exceptional" (800+), "Very Good" (740–799), "Good" (670–739), "Fair" (580–669), "Poor" (< 580). Estimate rating from context if no numeric score.
+scores[]: Extract all bureau scores. Include entries for all three bureaus. Set score to null if not found. Ratings: "Exceptional" (800+), "Very Good" (740–799), "Good" (670–739), "Fair" (580–669), "Poor" (< 580).
 
-overall.health: Integer 0–100 reflecting credit health. Weight payment history (35%), utilization (30%), account age (15%), credit mix (10%), inquiries (10%). Do not average scores.
+overall.health: Integer 0–100. Weight: payment history 35%, utilization 30%, account age 15%, credit mix 10%, inquiries 10%.
 
-overall.rating: Same rating scale as scores.
+negativeItems[]: CRITICAL — YOU MUST extract every single disputable item using ALL FIVE of the following passes. Do not stop until all five passes are complete.
 
-negativeItems[]: CRITICAL — be exhaustive. Include ALL of the following as separate items:
-- Every collection account (each separate collection agency = separate item)
-- Every charge-off (each creditor = separate item)
-- Every individual late payment event (a 30-day and a 60-day on the same account = TWO items)
-- Every judgment, lien, repossession, bankruptcy
-- Every hard inquiry that appears unrecognized, unauthorized, or questionable
-- Every medical debt in collections
-Do NOT collapse multiple late payments on one account into a single item. Do NOT skip inquiries. Do NOT skip items just because they seem accurate — list everything disputable.
-Set impactPoints as a string like "-30–50 pts".
+═══════════════════════════════════
+PASS A — PERSONAL INFORMATION SCAN
+═══════════════════════════════════
+Examine the Personal Information section of the report. Create a separate negativeItem for each of:
+1. Any alternate name listed that appears to belong to a DIFFERENT person (not just a formatting variation). Example: if the consumer is "Chad Nicely" and the report lists "Chad James" as an alternate — that is a different surname = likely mixed file or data error.
+2. Any address listed that appears unfamiliar, out-of-state, or unrecognized.
+3. Any employer listed that the consumer may not have worked for.
+For personal info items: type="Personal Information", accountNumber="N/A", balance="N/A", status="Reported", dofd=null, reportingDeadline=null, pastReportingLimit=false, disputeCategory="Personal Information Error", laws=["FCRA §1681e(b)", "FCRA §1681i"].
 
-bureaus[]: Set ONLY to the bureau keys ("experian", "equifax", "transunion") where that specific account explicitly appears. Do NOT default all items to all three bureaus.
+═══════════════════════════════════
+PASS B — HARD INQUIRY SCAN
+═══════════════════════════════════
+Find the Hard Inquiries section. Create one negativeItem per inquiry:
+- type="Hard Inquiry", accountNumber=the creditor name, balance="N/A"
+- bureaus=[the specific bureau showing this inquiry]
+- primaryBureau=that same bureau
+- dofd=null, reportingDeadline=null, pastReportingLimit=false
+- disputeCategory="Unauthorized Inquiry", laws=["FCRA §1681b"]
 
-primaryBureau: Set to the SINGLE bureau key where this dispute should be sent — choose the bureau where the inaccuracy is most clearly documented, the data is most problematic, or where a removal is most likely to succeed. Must be one of: "experian", "equifax", "transunion". Must be a value already in bureaus[].
+═══════════════════════════════════
+PASS C — COLLECTIONS SCAN
+═══════════════════════════════════
+Find the Collections section. Create one negativeItem per collection. Then:
+- Check if the collection is reported differently across bureaus (different status, different comments, different amounts). If YES, create an ADDITIONAL negativeItem for the inconsistency with disputeCategory="Cross-Bureau Inconsistency".
+- If the collection shows "Settled", "Paid", or zero unpaid balance on one bureau but "Charge Off" or non-zero balance on another, that is a "Cross-Bureau Inconsistency" item.
 
-For each negative item, apply the following FCRA classification logic in order:
+═══════════════════════════════════
+PASS D — ACCOUNT-BY-ACCOUNT LATE PAYMENT SCAN
+═══════════════════════════════════
+For EVERY account with Times 30/60/90 Days Late > 0/0/0, create SEPARATE negativeItems for each severity tier present:
+- If the account has any 30-day late events → create one item covering those events (disputeCategory="Late Payment Error")
+- If the account has any 60-day late events → create a SEPARATE item (disputeCategory="Late Payment Error" or "Balance/Status Error")
+- If the account has any 90-day+ late events → create a SEPARATE item (higher priority)
+Do not merge all late payments from one account into one item. Each severity tier = its own item.
 
-STEP 1 — Extract dofd (Date of First Delinquency):
-Look for fields labeled "Date of First Delinquency", "DOFD", "Original Delinquency Date", or derive it from the original missed-payment date. Set dofd to the date string found, or null if not present. For hard inquiries, set dofd to null.
+Also flag within this pass:
+- Any account that is CLOSED (Account Status = Closed) but still shows a non-zero balance → "Account Closed/Paid Incorrectly" or "Balance/Status Error"
+- Any account closed "at credit grantor's request" that still carries a balance → "Balance/Status Error"
 
-STEP 2 — Calculate reportingDeadline and pastReportingLimit:
-The 7-year reporting clock begins 180 days after the DOFD. If dofd is known, calculate: reportingDeadline = DOFD + 180 days + 7 years, formatted as "MM/YYYY". Set pastReportingLimit to true if that deadline is before today's date. If dofd is null, set reportingDeadline to null and pastReportingLimit to false.
+═══════════════════════════════════
+PASS E — CROSS-BUREAU CONSISTENCY CHECK
+═══════════════════════════════════
+For each account that appears on 2+ bureaus, compare these fields across bureaus:
+- Last Activity date: if they differ by 3+ months for the same account → "Cross-Bureau Inconsistency"
+- Account Status: if one bureau shows "Open" and another shows "Closed" or "Charge Off" → "Cross-Bureau Inconsistency"
+- Account Type: if one bureau shows "Flexible Spending Credit Card" and another shows "Credit Card" for the same account → "Cross-Bureau Inconsistency"
+- Remarks/Comments: if dramatically different across bureaus (e.g., one says "Settled" another says "Charge Off") → "Cross-Bureau Inconsistency"
+For Cross-Bureau Inconsistency items: bureaus=[the two bureaus showing conflicting data], primaryBureau=the one with worse/more damaging data, laws=["FCRA §1681e(b)", "FCRA §1681i(a)(4)"].
 
-STEP 3 — Classify disputeCategory using this decision tree (check in order, assign the first match):
-0. Item is a hard inquiry and the consumer may not recognize the lender or did not apply for credit there → "Unauthorized Inquiry" — laws: ["FCRA §1681b"]
-1. pastReportingLimit is true → "Obsolete (Past Reporting Limit)" — laws: ["FCRA §1681c"]
-2. Collection/charged-off account where the DOFD reported by the collector appears newer than the original creditor's last delinquency date → "Re-Aged Account" — laws: ["FCRA §1681c", "FCRA §1681s-2(a)(5)"]
-3. Account status contradicts another field: e.g., status is "Paid" or "Closed" but balance > $0 → "Balance/Status Error" — laws: ["FCRA §1681e(b)", "FCRA §1681s-2(a)(1)"]
-4. Same underlying debt appears multiple times under different creditor names or account numbers → "Duplicate Entry" — laws: ["FCRA §1681e(b)"]
-5. Consumer's identifying info (name, SSN, address) does not match the account's reported owner → "Not Mine" — laws: ["FCRA §1681i"]
-6. Collection account where the debt collector has not provided debt validation under FDCPA §1692g, or the underlying account records cannot be verified → "Collection Not Validated" — laws: ["FCRA §1681s-2(b)", "FDCPA §1692g"]
-7. Old debt sold to a collector where the original furnisher may no longer hold records (typically 2+ years since charge-off) → "Unverifiable Debt" — laws: ["FCRA §1681i(a)(1)", "FCRA §1681s-2(b)"]
-8. A late payment date, amount, or days-late value appears incorrect relative to other report data → "Late Payment Error" — laws: ["FCRA §1681e(b)", "FCRA §1681s-2(a)(1)"]
-9. Account should be marked closed or paid-in-full based on report data but is still showing as open or delinquent → "Account Closed/Paid Incorrectly" — laws: ["FCRA §1681s-2(a)(1)"]
-10. Default for any other inaccuracy → "Inaccurate Information" — laws: ["FCRA §1681e(b)", "FCRA §1681i"]
+═══════════════════════════════════
+bureaus[]: Set ONLY to the bureau key(s) where this specific item explicitly appears. Do NOT default to all three.
 
-Set laws[] to ONLY the sections listed for that category above. Do not include unrelated statutes.
+primaryBureau: The SINGLE bureau to target first. Must be a value already in bureaus[]. Choose where the inaccuracy is most clearly documented or most damaging.
 
-STEP 4 — Set specificViolation as ONE concrete sentence describing the exact data problem. Include dates, balances, or field values from the report.
+═══════════════════════════════════
+CLASSIFICATION (apply to every item after the five passes):
 
-STEP 5 — Set disputeStrength:
-- "Strong" — Obsolete items, re-aged accounts, self-contradicting status/balance fields, duplicate entries, unauthorized inquiries with no recognizable lender. These are objective, documentable violations.
-- "Moderate" — Unverifiable old debt, collection not validated, incorrect payment dates, late payment errors with supporting data.
-- "Weak" — "Not mine" claims without supporting evidence, generic inaccuracy disputes without specific data.
+STEP 1 — Extract dofd: Look for "Date of First Delinquency", "DOFD", "Original Delinquency Date". Set to date string or null.
 
-stats: Count directly from the report. utilization is e.g. "34%". estimatedImprovement is a realistic point-gain range if disputes succeed.
+STEP 2 — Calculate reportingDeadline: DOFD + 180 days + 7 years, formatted "MM/YYYY". Set pastReportingLimit=true if before today. If dofd null, set both to null/false.
 
-actionPlan[]: Concrete steps ordered High → Medium → Low → Positive. Reference actual accounts and applicable FCRA sections.
+STEP 3 — Assign disputeCategory (first match wins):
+- Item is personal information discrepancy → "Personal Information Error" — laws: ["FCRA §1681e(b)", "FCRA §1681i"]
+- Item is a hard inquiry, consumer may not recognize lender → "Unauthorized Inquiry" — laws: ["FCRA §1681b"]
+- Item is same account reported with materially different data across bureaus → "Cross-Bureau Inconsistency" — laws: ["FCRA §1681e(b)", "FCRA §1681i(a)(4)"]
+- pastReportingLimit is true → "Obsolete (Past Reporting Limit)" — laws: ["FCRA §1681c"]
+- DOFD on collector appears newer than original creditor's delinquency → "Re-Aged Account" — laws: ["FCRA §1681c", "FCRA §1681s-2(a)(5)"]
+- Status is Closed/Paid but balance > $0, OR closed account still showing utilization → "Balance/Status Error" — laws: ["FCRA §1681e(b)", "FCRA §1681s-2(a)(1)"]
+- Same underlying debt reported twice → "Duplicate Entry" — laws: ["FCRA §1681e(b)"]
+- Consumer info doesn't match account owner → "Not Mine" — laws: ["FCRA §1681i"]
+- Collection without debt validation or unverifiable → "Collection Not Validated" — laws: ["FCRA §1681s-2(b)", "FDCPA §1692g"]
+- Old debt sold to collector 2+ years after charge-off → "Unverifiable Debt" — laws: ["FCRA §1681i(a)(1)", "FCRA §1681s-2(b)"]
+- Late payment date, days-late value, or payment history entry appears incorrect → "Late Payment Error" — laws: ["FCRA §1681e(b)", "FCRA §1681s-2(a)(1)"]
+- Account should be closed or paid-in-full but still showing open/delinquent → "Account Closed/Paid Incorrectly" — laws: ["FCRA §1681s-2(a)(1)"]
+- Default → "Inaccurate Information" — laws: ["FCRA §1681e(b)", "FCRA §1681i"]
 
-Never include the SSN in any field of the JSON output.`;
+Set laws[] to ONLY sections listed for that category.
+
+STEP 4 — specificViolation: ONE concrete sentence. Include actual dates, balances, or field values from the report.
+
+STEP 5 — disputeStrength:
+- "Strong": Obsolete items, re-aged, status/balance contradictions, duplicate entries, unauthorized inquiries, cross-bureau inconsistencies with documentable differences, personal info errors showing different surname
+- "Moderate": Unverifiable old debt, unvalidated collections, late payment errors with supporting data
+- "Weak": "Not mine" without evidence, generic inaccuracy without specific data
+
+═══════════════════════════════════
+stats: Count directly from the report. utilization e.g. "34%". estimatedImprovement realistic range if all disputes succeed.
+
+actionPlan[]: Concrete steps High → Medium → Low → Positive. Reference actual accounts and FCRA sections.
+
+Never include SSN in any JSON field.`;
 
 function buildUserPrompt(
   pdfText: string,
