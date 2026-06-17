@@ -148,7 +148,7 @@ export async function analyzeReport(
     model: 'gpt-4o',
     temperature: 0,
     seed: 42,
-    max_tokens: 32768,
+    max_tokens: 16384,
     response_format: {
       type: 'json_schema',
       json_schema: {
