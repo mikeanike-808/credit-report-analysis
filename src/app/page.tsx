@@ -159,13 +159,17 @@ export default function LandingPage() {
       <div className="lp">
         {/* Nav */}
         <nav className="lp-nav">
-          <div className="lp-logo">
-            <div className="lp-logo-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-            </div>
-            DisputeGator
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Shield mark */}
+            <svg width="36" height="36" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19 2 L34 8 L34 20 C34 28 19 36 19 36 C19 36 4 28 4 20 L4 8 Z" fill="#010D18" />
+              <path d="M19 2 L34 8 L34 20 C34 28 19 36 19 36 C19 36 4 28 4 20 L4 8 Z" stroke="#53A02C" strokeWidth="1.5" />
+              <text x="19" y="25" textAnchor="middle" fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="17" fill="#53A02C">G</text>
+            </svg>
+            <span style={{ fontFamily: "'Arial Black', Impact, sans-serif", fontWeight: 900, fontSize: 19, letterSpacing: '-.01em', lineHeight: 1 }}>
+              <span style={{ color: '#010D18' }}>DISPUTE</span>
+              <span style={{ color: '#53A02C' }}>GATOR</span>
+            </span>
           </div>
           <Link href="/analyze" className="lp-nav-cta">Analyze My Report</Link>
         </nav>
@@ -319,7 +323,17 @@ export default function LandingPage() {
 
         {/* Footer */}
         <footer className="lp-footer">
-          <div className="lp-footer-logo">DisputeGator</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 12 }}>
+            <svg width="30" height="30" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19 2 L34 8 L34 20 C34 28 19 36 19 36 C19 36 4 28 4 20 L4 8 Z" fill="#010D18" />
+              <path d="M19 2 L34 8 L34 20 C34 28 19 36 19 36 C19 36 4 28 4 20 L4 8 Z" stroke="#53A02C" strokeWidth="1.5" />
+              <text x="19" y="25" textAnchor="middle" fontFamily="Arial Black, sans-serif" fontWeight="900" fontSize="17" fill="#53A02C">G</text>
+            </svg>
+            <span style={{ fontFamily: "'Arial Black', Impact, sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: '-.01em' }}>
+              <span style={{ color: '#E3E2E2' }}>DISPUTE</span>
+              <span style={{ color: '#53A02C' }}>GATOR</span>
+            </span>
+          </div>
           <p>
             This tool is for informational purposes only and does not constitute legal or financial advice.<br />
             Dispute letters are generated based on AI analysis of your credit report. Always review before sending.<br />
