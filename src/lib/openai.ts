@@ -329,9 +329,13 @@ For each such account, check all four:
 
 ===== CLASSIFICATION (all items) =====
 
+dateReported: Use the most recent lastActivity date from the account's bureauData entries. Skip any entry where lastActivity is "N/A" — only consider entries with a real MM/YYYY date. If multiple bureaus have real dates, pick the latest one. Only output "N/A" if every bureauData entry has lastActivity="N/A". For hard inquiries use the inquiry date from the inventory. For personal info items use "N/A".
+
 dofd: Use the dofd from the inventory account. Hard inquiries and personal info items → null.
 reportingDeadline: dofd + 7 years + 180 days, formatted "MM/YYYY". null if dofd is null.
 pastReportingLimit: true if reportingDeadline is before 2026-06-17. false otherwise.
+
+reasons: Be specific — cite actual values from the inventory. For late payments include the actual counts (e.g., "Experian reports 3 late payments at 30 days, Equifax reports 2"). For collections include the status and bureau. Never write generic phrases like "Multiple late payments reported across all bureaus."
 
 disputeStrength:
   "Strong" — Obsolete, re-aged, status/balance contradiction, duplicate, unauthorized inquiry, cross-bureau inconsistency, personal info with different surname
