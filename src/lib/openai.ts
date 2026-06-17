@@ -146,8 +146,9 @@ export async function analyzeReport(
 
   const response = await client.chat.completions.create({
     model: 'gpt-4o',
-    temperature: 0.2,
-    max_tokens: 16384,
+    temperature: 0,
+    seed: 42,
+    max_tokens: 32768,
     response_format: {
       type: 'json_schema',
       json_schema: {
@@ -196,6 +197,14 @@ overall.health: Integer 0-100. Weight: payment history 35%, utilization 30%, acc
 ===== NEGATIVE ITEMS — FIVE MANDATORY PASSES =====
 
 YOU MUST complete ALL FIVE passes before writing the negativeItems array. Each pass produces its own separate items. Do NOT merge items across passes. A report with multiple late-payment accounts and hard inquiries should yield 15-25 items. If you have fewer than 12 items you have missed something — go back and re-check each pass.
+
+ONE ISSUE = ONE ITEM (universal rule — applies across all passes):
+The same account CAN and SHOULD appear multiple times in negativeItems[] if it has multiple independently disputable issues. Merging two separate legal violations into one item is wrong. Every distinct disputable fact is its own row.
+Examples of what MUST be separate items:
+  • Account X has 30-day lates AND 60-day lates → two items (different severity tier = different dispute)
+  • Account X has a balance error AND appears on only one bureau when it should be on all three → two items (different legal theory)
+  • Account X has a cross-bureau status discrepancy AND a late payment → two items (different pass)
+Never write "account has multiple issues" and collapse them. Write one item per issue.
 
 ----- PASS A: PERSONAL INFORMATION -----
 Look at the Personal Information / Consumer Statement section. The consumer's correct name and address are in the SUBJECT block of this message.
