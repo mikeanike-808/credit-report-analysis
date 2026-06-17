@@ -82,6 +82,46 @@ export const AnalysisResultSchema = z.object({
 
 export type ValidatedAnalysisResult = z.infer<typeof AnalysisResultSchema>;
 
+// ── Extraction schemas (Call 1 of the two-call pipeline) ─────────────────────
+
+const BureauDataSchema = z.object({
+  bureau: z.string(),
+  status: z.string(),
+  late30: z.number(),
+  late60: z.number(),
+  late90: z.number(),
+  balance: z.string(),
+  lastActivity: z.string(),
+  remarks: z.string(),
+});
+
+const ExtractedPersonalInfoSchema = z.object({
+  errorType: z.enum(['alternate_name', 'unknown_address', 'unknown_employer']),
+  value: z.string(),
+  bureaus: z.array(z.string()),
+});
+
+const ExtractedInquirySchema = z.object({
+  creditor: z.string(),
+  bureau: z.string(),
+  date: z.string(),
+});
+
+const ExtractedAccountSchema = z.object({
+  creditor: z.string(),
+  accountNumber: z.string(),
+  dofd: z.string().nullable(),
+  bureauData: z.array(BureauDataSchema),
+});
+
+export const ExtractionResultSchema = z.object({
+  personalInfoItems: z.array(ExtractedPersonalInfoSchema),
+  hardInquiries: z.array(ExtractedInquirySchema),
+  accounts: z.array(ExtractedAccountSchema),
+});
+
+export type ExtractionResult = z.infer<typeof ExtractionResultSchema>;
+
 export const RequestBodySchema = z.object({
   pdfText: z.string().min(1, 'PDF text is required'),
   userInfo: z.object({
