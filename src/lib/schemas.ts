@@ -87,16 +87,24 @@ export type ValidatedAnalysisResult = z.infer<typeof AnalysisResultSchema>;
 const BureauDataSchema = z.object({
   bureau: z.string(),
   status: z.string(),
-  late30: z.number(),
-  late60: z.number(),
-  late90: z.number(),
+  late30: z.number().int().nonnegative(),
+  late60: z.number().int().nonnegative(),
+  late90: z.number().int().nonnegative(),
   balance: z.string(),
   lastActivity: z.string(),
   remarks: z.string(),
 });
 
+const ExtractedScoreSchema = z.object({
+  bureau: z.string(),
+  score: z.number().nullable(),
+  rating: z.string(),
+});
+
+// unknown_employer removed — we have no consumer-provided employer to compare
+// against, so blindly flagging every employer in the report produces false positives.
 const ExtractedPersonalInfoSchema = z.object({
-  errorType: z.enum(['alternate_name', 'unknown_address', 'unknown_employer']),
+  errorType: z.enum(['alternate_name', 'unknown_address']),
   value: z.string(),
   bureaus: z.array(z.string()),
 });
@@ -115,6 +123,7 @@ const ExtractedAccountSchema = z.object({
 });
 
 export const ExtractionResultSchema = z.object({
+  creditScores: z.array(ExtractedScoreSchema),
   personalInfoItems: z.array(ExtractedPersonalInfoSchema),
   hardInquiries: z.array(ExtractedInquirySchema),
   accounts: z.array(ExtractedAccountSchema),

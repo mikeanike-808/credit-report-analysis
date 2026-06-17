@@ -29,8 +29,21 @@ function getClient(): OpenAI {
 const EXTRACTION_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['personalInfoItems', 'hardInquiries', 'accounts'],
+  required: ['creditScores', 'personalInfoItems', 'hardInquiries', 'accounts'],
   properties: {
+    creditScores: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['bureau', 'score', 'rating'],
+        properties: {
+          bureau: { type: 'string' },
+          score: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+          rating: { type: 'string' },
+        },
+      },
+    },
     personalInfoItems: {
       type: 'array',
       items: {
@@ -38,7 +51,7 @@ const EXTRACTION_JSON_SCHEMA = {
         additionalProperties: false,
         required: ['errorType', 'value', 'bureaus'],
         properties: {
-          errorType: { type: 'string', enum: ['alternate_name', 'unknown_address', 'unknown_employer'] },
+          errorType: { type: 'string', enum: ['alternate_name', 'unknown_address'] },
           value: { type: 'string' },
           bureaus: { type: 'array', items: { type: 'string' } },
         },
@@ -76,9 +89,9 @@ const EXTRACTION_JSON_SCHEMA = {
               properties: {
                 bureau: { type: 'string' },
                 status: { type: 'string' },
-                late30: { type: 'number' },
-                late60: { type: 'number' },
-                late90: { type: 'number' },
+                late30: { type: 'integer' },
+                late60: { type: 'integer' },
+                late90: { type: 'integer' },
                 balance: { type: 'string' },
                 lastActivity: { type: 'string' },
                 remarks: { type: 'string' },
@@ -216,12 +229,18 @@ const EXTRACTION_SYSTEM_PROMPT = `You are a credit report data extraction engine
 
 EXTRACTION RULES:
 
+creditScores — find the credit score summary section (usually near the top):
+  - One entry per bureau: "experian", "equifax", "transunion" (lowercase keys)
+  - score: the numeric FICO/VantageScore integer shown, or null if not listed
+  - rating: the rating label shown in the report (e.g., "Fair", "Good", "Poor") or "" if none
+  - Always produce exactly three entries (one per bureau), even if some scores are null
+
 personalInfoItems — scan the Personal Information / Consumer Statement section:
-  - Each name listed with a DIFFERENT SURNAME from the consumer → errorType = "alternate_name", value = full name as written
-  - Each address that does NOT match the consumer's address → errorType = "unknown_address", value = full address as written
-  - Each employer listed → errorType = "unknown_employer", value = employer name as written
-  - bureaus = lowercase bureau key(s) where this item appears (["experian"], ["equifax", "transunion"], etc.)
-  - If nothing found, return []
+  - Alternate names: each name listed with a DIFFERENT SURNAME from the consumer → errorType = "alternate_name", value = full name as written. Do NOT flag nicknames or middle-name variations of the same surname.
+  - Unknown addresses: each address that clearly does NOT match the consumer's address → errorType = "unknown_address", value = full address as written. Do NOT flag partial matches or formatting differences of the same address.
+  - Do NOT extract employers — employer data is not included in this analysis.
+  - bureaus = lowercase bureau key(s) where this item appears
+  - If nothing qualifies, return []
 
 hardInquiries — find every entry in the Hard Inquiries section:
   - creditor = exact company name as written
@@ -259,8 +278,8 @@ PRIMARY BUREAU SELECTION — deterministic (no judgment calls):
 
 ===== SCORES & HEALTH =====
 
-scores[]: One entry per bureau. score = null if not in the original report. Ratings: "Exceptional" (800+), "Very Good" (740-799), "Good" (670-739), "Fair" (580-669), "Poor" (<580).
-overall.health: Integer 0-100. Payment history 35%, utilization 30%, account age 15%, credit mix 10%, inquiries 10%.
+scores[]: Use the CREDIT SCORES section of the inventory. Produce exactly three entries (experian, equifax, transunion). Copy the numeric score as-is; if listed as "N/A" set score to null. Ratings: "Exceptional" (800+), "Very Good" (740-799), "Good" (670-739), "Fair" (580-669), "Poor" (<580) — use the rating from the inventory or derive it from the score.
+overall.health: Integer 0-100. Derive from the scores and negative item count. Weight: payment history 35%, utilization 30%, account age 15%, credit mix 10%, inquiries 10%.
 
 ===== FIVE-PASS DISPUTE RULES =====
 
@@ -268,7 +287,7 @@ ONE ISSUE = ONE ITEM: The same account MUST appear multiple times if it has mult
 
 PASS A — PERSONAL INFORMATION:
 For EACH item in personalInfoItems, create exactly one negativeItem:
-  creditor = descriptive label using the actual value (e.g., "Alternate Name: Chad E James", "Unrecognized Address: 123 Main St", "Unknown Employer: Acme Corp")
+  creditor = descriptive label using the actual value (e.g., "Alternate Name: Chad E James", "Unrecognized Address: 123 Main St")
   type = "Personal Information", accountNumber = "N/A", balance = "N/A", status = "Reported"
   dofd = null, reportingDeadline = null, pastReportingLimit = false
   disputeCategory = "Personal Information Error"
@@ -327,6 +346,8 @@ stats.negativeItemCount: Set LAST — must equal the exact count of objects in n
 stats.latePayments: total number of accounts with any late payment count > 0.
 stats.hardInquiries: count of items in hardInquiries inventory.
 stats.totalAccounts: count of items in accounts inventory.
+stats.utilization: a percentage string like "18%" — estimate from balances in accounts inventory relative to their statuses.
+stats.estimatedImprovement: a point-range string ONLY — format exactly like "50-120" (digits, dash, digits). No word "points", no other text.
 actionPlan[]: Ordered High → Medium → Low → Positive. Reference actual creditor names and FCRA sections.
 
 Never include the SSN in any output field.`;
@@ -381,6 +402,12 @@ Extract every account, every inquiry, and every personal info entry. Do not skip
 // ── Format extraction as a readable inventory for Call 2 ─────────────────────
 
 function formatInventory(ex: ExtractionResult): string {
+  const scoreLines = ex.creditScores.length === 0
+    ? '  (none found)'
+    : ex.creditScores.map((s) =>
+        `  - ${s.bureau}: ${s.score ?? 'N/A'} (${s.rating})`
+      ).join('\n');
+
   const piLines = ex.personalInfoItems.length === 0
     ? '  (none)'
     : ex.personalInfoItems.map((p) =>
@@ -404,7 +431,7 @@ function formatInventory(ex: ExtractionResult): string {
     return `  ACCOUNT: ${a.creditor} #${a.accountNumber} | DOFD: ${a.dofd ?? 'N/A'}\n${bdLines}`;
   }).join('\n\n');
 
-  return `PERSONAL INFO ITEMS (${ex.personalInfoItems.length}):\n${piLines}\n\nHARD INQUIRIES (${ex.hardInquiries.length}):\n${inqLines}\n\nACCOUNTS (${ex.accounts.length}):\n${accLines}`;
+  return `CREDIT SCORES:\n${scoreLines}\n\nPERSONAL INFO ITEMS (${ex.personalInfoItems.length}):\n${piLines}\n\nHARD INQUIRIES (${ex.hardInquiries.length}):\n${inqLines}\n\nACCOUNTS (${ex.accounts.length}):\n${accLines}`;
 }
 
 // ── Call 2: Apply dispute rules to the structured inventory ───────────────────
