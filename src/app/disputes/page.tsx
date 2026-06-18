@@ -433,10 +433,13 @@ export default function DisputesPage() {
 
   const openLetter = (item: NegativeItem, bureau: Bureau) => {
     if (!result || !userInfo) return;
-    const itemsForBureau = result.negativeItems.filter(
+    const filtered = result.negativeItems.filter(
       (n) => n.creditor === item.creditor &&
         n.bureaus.map((b) => b.toLowerCase()).includes(bureau.key)
     );
+    // Fall back to the triggering item alone if the bureau filter returns nothing
+    // (can happen when primaryBureau and bureaus[] are misaligned in AI output)
+    const itemsForBureau = filtered.length > 0 ? filtered : [item];
     const body = buildCreditorLetter(bureau, item.creditor, itemsForBureau, userInfo, result.completedAt);
     setModal({ bureau, item, body });
   };

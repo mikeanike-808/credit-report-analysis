@@ -9,8 +9,16 @@
 // This eliminates count variance caused by pdfjs text-ordering differences across runs.
 
 import OpenAI from 'openai';
-import { AnalysisResultSchema, ExtractionResultSchema, type ExtractionResult, type ValidatedAnalysisResult } from './schemas';
+import {
+  AnalysisResultSchema,
+  AIAnalysisResultSchema,
+  ExtractionResultSchema,
+  type ExtractionResult,
+  type ValidatedAnalysisResult,
+} from './schemas';
 import type { UserInfo } from '@/types';
+import { computeReportingDeadline, monthsBetween } from './dateMath';
+import { preprocessReportText } from './reportPreprocess';
 
 // Strips newlines and excess whitespace from user-supplied fields before
 // injecting them into the prompt, preventing newline-based prompt injection.
@@ -104,6 +112,57 @@ const EXTRACTION_JSON_SCHEMA = {
   },
 };
 
+// negativeItems properties sent to the AI. reportingDeadline/pastReportingLimit
+// are deliberately absent — they're pure date arithmetic from `dofd`, computed
+// server-side in dateMath.ts and injected after the AI's response is parsed.
+// OpenAI's strict:true mode requires every `properties` key to also be in
+// `required`, so these two fields cannot be merely optional here — they must
+// not exist in this schema at all.
+const AI_NEGATIVE_ITEM_PROPERTIES = {
+  priority: { type: 'string', enum: ['High', 'Medium', 'Low'] },
+  creditor: { type: 'string' },
+  accountNumber: { type: 'string' },
+  type: { type: 'string' },
+  balance: { type: 'string' },
+  status: { type: 'string' },
+  dateReported: { type: 'string' },
+  reasons: { type: 'array', items: { type: 'string' } },
+  impact: { type: 'string', enum: ['High', 'Medium', 'Low'] },
+  impactPoints: { type: 'string' },
+  laws: { type: 'array', items: { type: 'string' } },
+  recommendedAction: { type: 'string' },
+  bureaus: { type: 'array', items: { type: 'string' } },
+  primaryBureau: { type: 'string' },
+  disputeCategory: {
+    type: 'string',
+    enum: [
+      'Not Mine',
+      'Inaccurate Information',
+      'Balance/Status Error',
+      'Obsolete (Past Reporting Limit)',
+      'Unverifiable Debt',
+      'Re-Aged Account',
+      'Duplicate Entry',
+      'Account Closed/Paid Incorrectly',
+      'Unauthorized Inquiry',
+      'Late Payment Error',
+      'Collection Not Validated',
+      'Personal Information Error',
+      'Cross-Bureau Inconsistency',
+    ],
+  },
+  dofd: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  disputeStrength: { type: 'string', enum: ['Strong', 'Moderate', 'Weak'] },
+  specificViolation: { type: 'string' },
+};
+
+const AI_NEGATIVE_ITEM_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: Object.keys(AI_NEGATIVE_ITEM_PROPERTIES),
+  properties: AI_NEGATIVE_ITEM_PROPERTIES,
+};
+
 const ANALYSIS_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -140,56 +199,7 @@ const ANALYSIS_JSON_SCHEMA = {
     weaknesses: { type: 'array', items: { type: 'string' } },
     negativeItems: {
       type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: [
-          'priority', 'creditor', 'accountNumber', 'type', 'balance',
-          'status', 'dateReported', 'reasons', 'impact', 'impactPoints',
-          'laws', 'recommendedAction', 'bureaus', 'primaryBureau',
-          'disputeCategory', 'dofd', 'reportingDeadline', 'pastReportingLimit',
-          'disputeStrength', 'specificViolation',
-        ],
-        properties: {
-          priority: { type: 'string', enum: ['High', 'Medium', 'Low'] },
-          creditor: { type: 'string' },
-          accountNumber: { type: 'string' },
-          type: { type: 'string' },
-          balance: { type: 'string' },
-          status: { type: 'string' },
-          dateReported: { type: 'string' },
-          reasons: { type: 'array', items: { type: 'string' } },
-          impact: { type: 'string', enum: ['High', 'Medium', 'Low'] },
-          impactPoints: { type: 'string' },
-          laws: { type: 'array', items: { type: 'string' } },
-          recommendedAction: { type: 'string' },
-          bureaus: { type: 'array', items: { type: 'string' } },
-          primaryBureau: { type: 'string' },
-          disputeCategory: {
-            type: 'string',
-            enum: [
-              'Not Mine',
-              'Inaccurate Information',
-              'Balance/Status Error',
-              'Obsolete (Past Reporting Limit)',
-              'Unverifiable Debt',
-              'Re-Aged Account',
-              'Duplicate Entry',
-              'Account Closed/Paid Incorrectly',
-              'Unauthorized Inquiry',
-              'Late Payment Error',
-              'Collection Not Validated',
-              'Personal Information Error',
-              'Cross-Bureau Inconsistency',
-            ],
-          },
-          dofd: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-          reportingDeadline: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-          pastReportingLimit: { type: 'boolean' },
-          disputeStrength: { type: 'string', enum: ['Strong', 'Moderate', 'Weak'] },
-          specificViolation: { type: 'string' },
-        },
-      },
+      items: AI_NEGATIVE_ITEM_SCHEMA,
     },
     actionPlan: {
       type: 'array',
@@ -227,6 +237,8 @@ const ANALYSIS_JSON_SCHEMA = {
 
 const EXTRACTION_SYSTEM_PROMPT = `You are a credit report data extraction engine. Extract every data point from the raw credit report text exactly as written. Do not evaluate, classify, prioritize, or skip anything. Your only job is to produce a complete, accurate, flat inventory.
 
+The report text may contain inserted markers like "--- SECTION: ACCOUNTS ---" or inline hints like "[late30/60/90 precomputed: 4/1/1]". These are best-effort hints to help you locate data faster — they are NOT ground truth. Always verify against the surrounding raw text; if a hint looks wrong or inconsistent with the text around it, trust the raw text instead.
+
 EXTRACTION RULES:
 
 creditScores — find the credit score summary section (usually near the top):
@@ -236,8 +248,8 @@ creditScores — find the credit score summary section (usually near the top):
   - Always produce exactly three entries (one per bureau), even if some scores are null
 
 personalInfoItems — scan the Personal Information / Consumer Statement section:
-  - Alternate names: each name listed with a DIFFERENT SURNAME from the consumer → errorType = "alternate_name", value = full name as written. Do NOT flag nicknames or middle-name variations of the same surname.
-  - Unknown addresses: each address that clearly does NOT match the consumer's address → errorType = "unknown_address", value = full address as written. Do NOT flag partial matches or formatting differences of the same address.
+  - Alternate names: each name listed with a CLEARLY DIFFERENT SURNAME from the consumer → errorType = "alternate_name", value = full name as written. Do NOT flag nicknames, middle-name variations, or names where the surname matches. Only flag if someone else's surname appears.
+  - Unknown addresses: ONLY flag an address where BOTH the city AND state differ from the consumer's current city/state. Credit reports routinely list prior addresses — these are normal and must NOT be flagged. Do NOT flag any address in the same city or state as the consumer's current address. Only flag addresses that could belong to a completely different person.
   - Do NOT extract employers — employer data is not included in this analysis.
   - bureaus = lowercase bureau key(s) where this item appears
   - If nothing qualifies, return []
@@ -248,16 +260,20 @@ hardInquiries — find every entry in the Hard Inquiries section:
   - date = inquiry date as written in the report
 
 accounts — list EVERY account (open, closed, charged off, in collections, paid, current — all of them):
+  Include ALL account types without exception: credit cards, retail/charge accounts, auto loans, mortgages, personal loans, student loans, government obligations (child support, tax liens), collections, charge-offs, utility accounts. Do not skip any account based on its type.
+  IMPORTANT: Many reports show a separate "Collections" section with different field labels than the main account tables (e.g. "Date Opened" instead of "Open Date", "Current Rating" instead of "Account Status", "Original Creditor" instead of the furnisher name). Every entry in a Collections section is STILL an account and MUST be added to accounts[] — map its fields onto the same bureauData shape (status = the Current Rating / Status text, balance = Unpaid Balance, etc.). Do not treat a Collections section as separate from or excluded from the accounts list.
   bureauData contains one entry per bureau where this account appears:
     - bureau: lowercase key
     - status: exact Account Status text from that bureau column
-    - late30: integer from "Times 30 Days Late" field — use 0 if "--", "N/A", or not present
-    - late60: integer from "Times 60 Days Late" field — use 0 if "--", "N/A", or not present
-    - late90: integer from "Times 90+ Days Late" field — use 0 if "--", "N/A", or not present
+    - late30: integer from "Times 30/60/90 Days Late" field — the FIRST number (e.g., "4/1/1" → 4, "2/2/42" → 2). Use 0 if "--", "N/A", or not present.
+    - late60: integer — the SECOND number from the same field (e.g., "4/1/1" → 1, "2/2/42" → 2). Use 0 if "--", "N/A", or not present.
+    - late90: integer — the THIRD number from the same field (e.g., "4/1/1" → 1, "2/2/42" → 42). Use 0 if "--", "N/A", or not present.
     - balance: balance amount as written ("$0", "$450", "N/A" if not shown)
     - lastActivity: Last Activity or Last Payment date ("MM/YYYY" or "N/A" if not shown)
     - remarks: Remarks or Comments text — exact text, "" if none
   dofd: Date of First Delinquency for this account ("MM/YYYY") or null if not found.
+
+ACCOUNT COUNT VERIFICATION: After extracting accounts[], count them. If the report contains an Account Summary table, your total should approximately match that table's account count. If your count is significantly lower, you likely missed accounts — scan the report again for additional tradelines.
 
 Do not infer or assume values. If a field is missing from the report text, use 0 (numbers), "" (strings), or null (dofd).`;
 
@@ -281,14 +297,25 @@ PRIMARY BUREAU SELECTION — deterministic (no judgment calls):
 scores[]: Use the CREDIT SCORES section of the inventory. Produce exactly three entries (experian, equifax, transunion). Copy the numeric score as-is; if listed as "N/A" set score to null. Ratings: "Exceptional" (800+), "Very Good" (740-799), "Good" (670-739), "Fair" (580-669), "Poor" (<580) — use the rating from the inventory or derive it from the score.
 overall.health: Integer 0-100. Derive from the scores and negative item count. Weight: payment history 35%, utilization 30%, account age 15%, credit mix 10%, inquiries 10%.
 
+===== EVIDENCE REQUIREMENT (applies to ALL passes) =====
+
+Every negativeItem must satisfy ALL THREE conditions before you create it:
+1. The disputable fact must appear explicitly in the inventory — not inferred, assumed, or interpolated.
+2. specificViolation must cite at least one concrete data value from the inventory: a specific date, a specific count (e.g., "late30=3"), a specific balance string, a specific status string, or a specific bureau name. Writing vague phrases like "reported inaccurately" or "information is incorrect" without citing actual inventory values is PROHIBITED.
+3. If you cannot write a specificViolation that quotes actual inventory data, DO NOT create the item. Omit it entirely.
+
+This rule prevents fabrication. Do not pad negativeItems[] to reach any expected count.
+
 ===== FIVE-PASS DISPUTE RULES =====
 
 ONE ISSUE = ONE ITEM: The same account MUST appear multiple times if it has multiple disputable issues. Never merge. Each distinct legal violation = its own negativeItem.
 
 PASS A — PERSONAL INFORMATION:
-For EACH item in personalInfoItems, create exactly one negativeItem:
+For EACH item in personalInfoItems, create exactly one negativeItem ONLY IF the error is clearly attributable to a mistake — not to a legitimate prior address or known name variant:
+  - Alternate names: flag ONLY if the surname is clearly different from the consumer's surname. Do NOT flag middle-name variations or nicknames with the same surname.
+  - Unknown addresses: flag ONLY if the city AND state are both different from the consumer's current city/state. Prior addresses in the same metro area or state are normal in credit reports and must NOT be flagged. Only flag an address that shows no plausible connection to this consumer.
   creditor = descriptive label using the actual value (e.g., "Alternate Name: Chad E James", "Unrecognized Address: 123 Main St")
-  type = "Personal Information", accountNumber = "N/A", balance = "N/A", status = "Reported"
+  type = "Personal Information", accountNumber = "N/A", balance = "N/A", status = "Reported (N/A)"
   dofd = null, reportingDeadline = null, pastReportingLimit = false
   disputeCategory = "Personal Information Error"
   laws = ["FCRA §1681e(b)", "FCRA §1681i"], disputeStrength = "Strong"
@@ -303,26 +330,28 @@ For EACH item in hardInquiries, create exactly one negativeItem:
   bureaus = [the bureau from inventory], primaryBureau = that bureau
 
 PASS C — COLLECTIONS / CHARGE-OFFS:
-For each account where any bureauData entry has status containing "Charge Off", "Collection", or similar derogatory:
+For each account where any bureauData entry has status containing "Charge Off", "Collection", "Settled", "Repossession", or "Foreclosure":
   - One negativeItem for the collection/charge-off itself (disputeCategory = "Collection Not Validated")
   - If statuses differ across bureauData entries (e.g., "Charge Off" on one, "Closed" on another) → a SECOND negativeItem (disputeCategory = "Cross-Bureau Inconsistency")
   - If remarks differ materially across bureauData entries → a SECOND negativeItem (disputeCategory = "Cross-Bureau Inconsistency")
 
 PASS D — LATE PAYMENTS (check each account independently):
+Pass D applies to ALL account types without exception: credit cards, auto loans, mortgages, personal loans, government obligations (child support, tax liens), collections, retail accounts, or any other type. Do not skip any account based on its type.
+First, scan the ACCOUNTS list top to bottom and build a mental checklist of every account that has a "[HAS LATE PAYMENTS -- 30-day=X 60-day=Y 90-day=Z]" line — that line is precomputed and tells you exactly which tiers are nonzero for that account; you do not need to re-derive it from the per-bureau lines below it. Every account on that checklist gets at least one negativeItem per nonzero tier listed. Do not stop partway through a long account list — apply Pass D to every account on the checklist, not just the first few.
 For each account, evaluate each tier separately using the bureauData:
   - If any bureauData entry has late30 > 0 → create ONE negativeItem for 30-day lates (disputeCategory = "Late Payment Error")
   - If any bureauData entry has late60 > 0 → create a SEPARATE negativeItem for 60-day lates (disputeCategory = "Late Payment Error")
   - If any bureauData entry has late90 > 0 → create a SEPARATE negativeItem for 90-day lates (disputeCategory = "Late Payment Error")
   - DO NOT merge tiers. Three different late tiers = three separate items, even for the same account.
   Also:
-  - Any account with status "Closed" or "Charge Off" AND any bureauData balance not "$0" or "N/A" → one negativeItem (disputeCategory = "Balance/Status Error")
+  - Balance/Status Error: if an account has a "[HAS NONZERO BALANCE ON CLOSED/CHARGE-OFF ...]" line, that is precomputed confirmation the rule below is satisfied — create one negativeItem (disputeCategory = "Balance/Status Error") using the quoted bureau/status/balance. This check is independent of and in addition to any late-tier items for the same account — never skip it just because the account already has Late Payment Error items. Full rule for reference: any account where ANY bureauData entry has balance NOT "$0" AND NOT "N/A" AND NOT "" AND the same entry's status contains "Closed" (any wording such as "Account Closed", "Account Closed By Credit Grantor", "Closed") OR "Charge Off". Note: "$0.00" counts as $0 (skip). A non-zero balance on a closed or charged-off account means the consumer may still owe disputed funds.
   laws = ["FCRA §1681e(b)", "FCRA §1681s-2(a)(1)"]
 
 PASS E — CROSS-BUREAU CONSISTENCY (accounts with 2+ bureauData entries):
-For each such account, check all four:
-  E1. lastActivity gap ≥ 3 months across bureauData entries → one negativeItem
-  E2. status values differ (Open vs Closed, Open vs Charge Off, etc.) → one negativeItem
-  E3. remarks text materially different across entries → one negativeItem
+For each such account, check all three. Only create an item when the difference is MATERIAL and CONCRETE — both bureaus' actual values must be quoted in specificViolation:
+  E1. lastActivity gap: if the inventory shows a precomputed "[lastActivity gap: N months -- bureau=date, bureau=date]" annotation for an account, that means the gap is already confirmed >= 3 months — create one negativeItem and quote the exact dates/bureaus from the annotation in specificViolation. Do NOT recompute the gap yourself. If no such annotation is present for an account, there is no qualifying gap — skip E1 for that account entirely.
+  E2. status values differ SEMANTICALLY — "Open" vs "Closed", "Open" vs "Charge Off", "Current" vs "Delinquent". Do NOT flag cosmetically different strings that carry the same meaning: "Account Closed", "Closed", and "Account Closed By Credit Grantor" are ALL equivalent statuses — do NOT create an E2 item for these. Only flag when one bureau says Open/Current and another says Closed/Derogatory. Quote both actual status strings in specificViolation.
+  E3. remarks differ materially: one bureau's remarks contain a derogatory keyword ("delinquent", "late", "past due", "charge off", "collection", "repossession") that another bureau's remarks do NOT contain, AND both remarks are non-empty. Do NOT flag when one bureau's remarks is "" (empty) and the other has any remarks — absence of remarks is not a conflict. Quote both remarks strings in specificViolation.
   (E2 and E3 also apply in Pass C — do not duplicate; skip if already created in Pass C)
   disputeCategory = "Cross-Bureau Inconsistency", laws = ["FCRA §1681e(b)", "FCRA §1681i(a)(4)"]
   bureaus = the two bureaus with conflicting data, primaryBureau = bureau with more damaging data
@@ -332,8 +361,6 @@ For each such account, check all four:
 dateReported: Use the most recent lastActivity date from the account's bureauData entries. Skip any entry where lastActivity is "N/A" — only consider entries with a real MM/YYYY date. If multiple bureaus have real dates, pick the latest one. Only output "N/A" if every bureauData entry has lastActivity="N/A". For hard inquiries use the inquiry date from the inventory. For personal info items use "N/A".
 
 dofd: Use the dofd from the inventory account. Hard inquiries and personal info items → null.
-reportingDeadline: dofd + 7 years + 180 days, formatted "MM/YYYY". null if dofd is null.
-pastReportingLimit: true if reportingDeadline is before 2026-06-17. false otherwise.
 
 reasons: Be specific — cite actual values from the inventory. For late payments include the actual counts (e.g., "Experian reports 3 late payments at 30 days, Equifax reports 2"). For collections include the status and bureau. Never write generic phrases like "Multiple late payments reported across all bureaus."
 
@@ -352,9 +379,7 @@ stats.hardInquiries: count of items in hardInquiries inventory.
 stats.totalAccounts: count of items in accounts inventory.
 stats.utilization: a percentage string like "18%" — estimate from balances in accounts inventory relative to their statuses.
 stats.estimatedImprovement: a point-range string ONLY — format exactly like "50-120" (digits, dash, digits). No word "points", no other text.
-actionPlan[]: Ordered High → Medium → Low → Positive. Reference actual creditor names and FCRA sections.
-
-Never include the SSN in any output field.`;
+actionPlan[]: Ordered High → Medium → Low → Positive. Reference actual creditor names and FCRA sections.`;
 
 // ── Call 1: Extract structured inventory from raw PDF text ────────────────────
 
@@ -432,32 +457,112 @@ function formatInventory(ex: ExtractionResult): string {
           const remarks = b.remarks.replace(/[\r\n]+/g, ' ').trim();
           return `    ${b.bureau}: status="${b.status}" | 30-day=${b.late30} 60-day=${b.late60} 90-day=${b.late90} | balance=${b.balance} | lastActivity=${b.lastActivity} | remarks="${remarks}"`;
         }).join('\n');
-    return `  ACCOUNT: ${a.creditor} #${a.accountNumber} | DOFD: ${a.dofd ?? 'N/A'}\n${bdLines}`;
+
+    // Precompute the Pass E1 cross-bureau lastActivity gap so the AI doesn't
+    // have to do multi-step date arithmetic itself. Only annotate when the
+    // gap meets the materiality threshold (>= 3 months) -- omit otherwise so
+    // the inventory doesn't get noisy with "no gap" lines.
+    const datedEntries = a.bureauData.filter((b) => b.lastActivity !== 'N/A');
+    let gapLine = '';
+    let maxGap = -1;
+    let gapPair: [typeof datedEntries[number], typeof datedEntries[number]] | null = null;
+    for (let i = 0; i < datedEntries.length; i++) {
+      for (let j = i + 1; j < datedEntries.length; j++) {
+        const gap = monthsBetween(datedEntries[i]!.lastActivity, datedEntries[j]!.lastActivity);
+        if (gap !== null && gap > maxGap) {
+          maxGap = gap;
+          gapPair = [datedEntries[i]!, datedEntries[j]!];
+        }
+      }
+    }
+    if (gapPair && maxGap >= 3) {
+      gapLine = `\n    [lastActivity gap: ${maxGap} months -- ${gapPair[0].bureau}=${gapPair[0].lastActivity}, ${gapPair[1].bureau}=${gapPair[1].lastActivity}]`;
+    }
+
+    // Surface the max late-tier counts across bureaus as a single salient
+    // line at the top of the account block. The per-bureau lines below
+    // already contain this data; this is purely a visibility aid so Pass D
+    // doesn't have to mentally scan 1-3 separate bureau lines per account
+    // across a long account list to notice a nonzero tier exists.
+    const maxLate30 = Math.max(0, ...a.bureauData.map((b) => b.late30));
+    const maxLate60 = Math.max(0, ...a.bureauData.map((b) => b.late60));
+    const maxLate90 = Math.max(0, ...a.bureauData.map((b) => b.late90));
+    const lateFlagLine = maxLate30 > 0 || maxLate60 > 0 || maxLate90 > 0
+      ? `\n    [HAS LATE PAYMENTS -- 30-day=${maxLate30} 60-day=${maxLate60} 90-day=${maxLate90}]`
+      : '';
+
+    // Same visibility aid for the Pass D Balance/Status Error rule: flag any
+    // bureauData entry that is closed/charged-off with a nonzero balance,
+    // using the exact same zero-detection logic as computeMinimumExpectedItems
+    // below so the prompt hint and the code-side floor never disagree.
+    const balanceFlagEntry = a.bureauData.find((b) => {
+      const isClosedOrCO = /closed|charge.?off/i.test(b.status);
+      const bal = b.balance.replace(/[$,\s]/g, '');
+      const isNonZero = bal !== '0' && bal !== '0.00' && bal !== 'N/A' && bal !== '' && bal !== '--' && bal !== '-';
+      return isClosedOrCO && isNonZero;
+    });
+    const balanceFlagLine = balanceFlagEntry
+      ? `\n    [HAS NONZERO BALANCE ON CLOSED/CHARGE-OFF -- ${balanceFlagEntry.bureau}: status="${balanceFlagEntry.status}" balance=${balanceFlagEntry.balance}]`
+      : '';
+
+    return `  ACCOUNT: ${a.creditor} #${a.accountNumber} | DOFD: ${a.dofd ?? 'N/A'}${lateFlagLine}${balanceFlagLine}\n${bdLines}${gapLine}`;
   }).join('\n\n');
 
   return `CREDIT SCORES:\n${scoreLines}\n\nPERSONAL INFO ITEMS (${ex.personalInfoItems.length}):\n${piLines}\n\nHARD INQUIRIES (${ex.hardInquiries.length}):\n${inqLines}\n\nACCOUNTS (${ex.accounts.length}):\n${accLines}`;
 }
 
+// Derives the floor on how many negativeItems Call 2 must return, purely from
+// the structured inventory. If the AI returns fewer, we know it collapsed items.
+// This is report-agnostic — the formula is the same for any credit report.
+function computeMinimumExpectedItems(ex: ExtractionResult): number {
+  let min = 0;
+
+  // Pass A: one item per personal info entry
+  min += ex.personalInfoItems.length;
+
+  // Pass B: one item per hard inquiry
+  min += ex.hardInquiries.length;
+
+  for (const acc of ex.accounts) {
+    const hasChargeOffOrCollection = acc.bureauData.some((b) =>
+      /charge.?off|collection|settled|repossession|foreclosure/i.test(b.status)
+    );
+
+    // Pass C: collection/charge-off itself
+    if (hasChargeOffOrCollection) min += 1;
+
+    // Pass D: one item per non-zero late tier
+    if (acc.bureauData.some((b) => b.late30 > 0)) min += 1;
+    if (acc.bureauData.some((b) => b.late60 > 0)) min += 1;
+    if (acc.bureauData.some((b) => b.late90 > 0)) min += 1;
+
+    // Pass D: closed/charge-off with non-zero balance
+    const hasClosedWithBalance = acc.bureauData.some((b) => {
+      const isClosedOrCO = /closed|charge.?off/i.test(b.status);
+      const bal = b.balance.replace(/[$,\s]/g, '');
+      // Treat as zero: "0", "0.00", "N/A", "", "--", "-"
+      const isNonZero = bal !== '0' && bal !== '0.00' && bal !== 'N/A' && bal !== '' && bal !== '--' && bal !== '-';
+      return isClosedOrCO && isNonZero;
+    });
+    if (hasClosedWithBalance) min += 1;
+  }
+
+  return min;
+}
+
 // ── Call 2: Apply dispute rules to the structured inventory ───────────────────
 
-export async function analyzeReport(
-  pdfText: string,
-  userInfo: UserInfo,
+async function runAnalysisCall(
+  client: OpenAI,
+  inventory: string,
+  fullName: string,
+  fullAddress: string,
+  seed: number,
 ): Promise<ValidatedAnalysisResult> {
-  const client = getClient();
-
-  const fullName = sanitizeField(`${userInfo.first} ${userInfo.last}`);
-  const fullAddress = sanitizeField(`${userInfo.address}, ${userInfo.city}, ${userInfo.state} ${userInfo.zip}`);
-
-  // Call 1 — extract structured inventory
-  const extraction = await extractReportData(client, pdfText, fullName, fullAddress);
-  const inventory = formatInventory(extraction);
-
-  // Call 2 — classify and generate dispute analysis from the fixed inventory
   const response = await client.chat.completions.create({
     model: 'gpt-4o',
     temperature: 0,
-    seed: 42,
+    seed,
     max_tokens: 16384,
     response_format: {
       type: 'json_schema',
@@ -476,8 +581,6 @@ export async function analyzeReport(
 CONSUMER:
 Name: ${fullName}
 Address: ${fullAddress}
-Date of Birth: ${sanitizeField(userInfo.dob)}
-SSN: ${sanitizeField(userInfo.ssn)}
 
 ===== EXTRACTED CREDIT REPORT INVENTORY =====
 
@@ -501,5 +604,65 @@ Set stats.negativeItemCount LAST — it must match the exact length of the negat
   if (!raw) throw new Error('The AI returned an empty response. Please try again.');
 
   const parsed: unknown = JSON.parse(raw);
-  return AnalysisResultSchema.parse(parsed);
+  const aiResult = AIAnalysisResultSchema.parse(parsed);
+
+  // Inject server-computed reportingDeadline/pastReportingLimit (pure date
+  // arithmetic from dofd — the AI never produces these) and re-validate
+  // against the full schema before returning, per the project's "always
+  // validate AI output before returning to the client" rule.
+  const negativeItems = aiResult.negativeItems.map((item) => ({
+    ...item,
+    ...computeReportingDeadline(item.dofd),
+  }));
+
+  return AnalysisResultSchema.parse({ ...aiResult, negativeItems });
+}
+
+// test-only exports -- used exclusively by scripts/run-pipeline.ts to isolate
+// Call 1 / Call 2 variance for diagnosis. Not part of the production API;
+// route.ts only ever imports analyzeReport().
+export const __test__ = { extractReportData, runAnalysisCall, formatInventory, computeMinimumExpectedItems, getClient };
+
+export async function analyzeReport(
+  pdfText: string,
+  userInfo: UserInfo,
+): Promise<ValidatedAnalysisResult> {
+  const client = getClient();
+
+  const fullName = sanitizeField(`${userInfo.first} ${userInfo.last}`);
+  const fullAddress = sanitizeField(`${userInfo.address}, ${userInfo.city}, ${userInfo.state} ${userInfo.zip}`);
+
+  // Best-effort, additive pre-processing of the raw PDF text -- inserts
+  // section markers and label-anchored hints when confidently detected,
+  // otherwise passes the text through unmodified. Never blocks the pipeline.
+  const preprocessed = preprocessReportText(pdfText);
+  console.info(
+    `[reportPreprocess] sections detected: ${preprocessed.sectionsDetected.join(', ') || 'none'}, late-tier hints: ${preprocessed.lateTierAnnotationCount}`,
+  );
+
+  // Call 1 — extract structured inventory
+  const extraction = await extractReportData(client, preprocessed.text, fullName, fullAddress);
+  const inventory = formatInventory(extraction);
+
+  // Derive expected floor from inventory math — if Call 2 returns fewer, retry once
+  const minimumExpected = computeMinimumExpectedItems(extraction);
+
+  // Call 2 — classify and generate dispute analysis from the fixed inventory
+  const firstResult = await runAnalysisCall(client, inventory, fullName, fullAddress, 42);
+
+  if (firstResult.negativeItems.length >= minimumExpected) {
+    return firstResult;
+  }
+
+  // Item count is below the mechanical minimum — retry with a different seed.
+  // The AI collapsed items despite explicit rules; a second attempt often corrects this.
+  console.warn(
+    `[analyzeReport] Got ${firstResult.negativeItems.length} items but inventory implies ≥${minimumExpected}. Retrying.`,
+  );
+  const retryResult = await runAnalysisCall(client, inventory, fullName, fullAddress, 99);
+
+  // Return whichever attempt yielded more items
+  return retryResult.negativeItems.length >= firstResult.negativeItems.length
+    ? retryResult
+    : firstResult;
 }

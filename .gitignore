@@ -28,3 +28,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# pipeline diagnostic harness (scripts/run-pipeline.ts) - fixtures contain real
+# personal data from a real report, output is raw API dumps for diffing
+/scripts/fixtures/
+/scripts/output/
+
+# local dev server logs
+devserver*.log

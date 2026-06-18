@@ -82,6 +82,27 @@ export const AnalysisResultSchema = z.object({
 
 export type ValidatedAnalysisResult = z.infer<typeof AnalysisResultSchema>;
 
+// ── AI-facing variant (Call 2's actual response_format / first parse) ────────
+//
+// reportingDeadline/pastReportingLimit are pure date arithmetic computed
+// server-side from dofd (see src/lib/dateMath.ts) — the AI never produces
+// them. OpenAI's strict:true JSON-schema mode requires every key in
+// `properties` to also be in `required`, so these fields must be entirely
+// absent from the AI-facing schema, not just nullable. After the AI-facing
+// parse succeeds, the two fields are computed and injected, and the result
+// is re-validated against AnalysisResultSchema (above) before being
+// returned — preserving the "validate before returning to client" rule.
+const AINegativeItemSchema = NegativeItemSchema.omit({
+  reportingDeadline: true,
+  pastReportingLimit: true,
+});
+
+export const AIAnalysisResultSchema = AnalysisResultSchema.extend({
+  negativeItems: z.array(AINegativeItemSchema),
+});
+
+export type AIAnalysisResult = z.infer<typeof AIAnalysisResultSchema>;
+
 // ── Extraction schemas (Call 1 of the two-call pipeline) ─────────────────────
 
 const BureauDataSchema = z.object({
