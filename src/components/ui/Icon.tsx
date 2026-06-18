@@ -32,6 +32,8 @@ const ICON_PATHS: Record<string, React.ReactNode> = {
   hash:        <path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18" />,
   percent:     <><path d="M19 5 5 19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /></>,
   scale:       <><path d="M12 3v18M5 7h14" /><path d="M5 7l-3 6a3 3 0 0 0 6 0L5 7zM19 7l-3 6a3 3 0 0 0 6 0l-3-6z" /></>,
+  home:        <><path d="M3 11l9-8 9 8" /><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10" /></>,
+  clock:       <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></>,
 };
 
 interface IconProps {

@@ -1,5 +1,5 @@
 import { auth } from '@clerk/nextjs/server';
-import { createDispute, calcExpectedResponseBy } from '@/lib/disputes';
+import { createDispute, calcExpectedResponseBy, incrementBiteLetterCount } from '@/lib/disputes';
 
 export async function POST(request: Request) {
   try {
@@ -14,9 +14,10 @@ export async function POST(request: Request) {
       accountNumber: string;
       disputeCategory: string;
       sentAt: string;
+      biteId?: string;
     };
 
-    const { bureauKey, creditor, accountNumber, disputeCategory, sentAt } = body;
+    const { bureauKey, creditor, accountNumber, disputeCategory, sentAt, biteId } = body;
 
     if (!bureauKey || !creditor || !sentAt) {
       return Response.json({ success: false, error: 'missing_fields' }, { status: 400 });
@@ -33,7 +34,10 @@ export async function POST(request: Request) {
       send_method: 'manual',
       sent_at: new Date(sentAt).toISOString(),
       expected_response_by: expectedResponseBy,
+      bite_id: biteId,
     });
+
+    if (biteId) await incrementBiteLetterCount(biteId);
 
     return Response.json({
       success: true,

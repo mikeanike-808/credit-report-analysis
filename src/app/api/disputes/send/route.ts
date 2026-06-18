@@ -1,6 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { sendCertifiedLetter } from '@/lib/lob';
-import { createDispute, calcExpectedResponseBy } from '@/lib/disputes';
+import { createDispute, calcExpectedResponseBy, incrementBiteLetterCount } from '@/lib/disputes';
 
 export async function POST(request: Request) {
   try {
@@ -17,9 +17,10 @@ export async function POST(request: Request) {
       letterBody: string;
       senderName: string;
       senderAddress: { address: string; city: string; state: string; zip: string };
+      biteId?: string;
     };
 
-    const { bureauKey, creditor, accountNumber, disputeCategory, letterBody, senderName, senderAddress } = body;
+    const { bureauKey, creditor, accountNumber, disputeCategory, letterBody, senderName, senderAddress, biteId } = body;
 
     if (!bureauKey || !creditor || !letterBody || !senderName || !senderAddress) {
       return Response.json({ success: false, error: 'missing_fields' }, { status: 400 });
@@ -44,7 +45,10 @@ export async function POST(request: Request) {
       lob_letter_id: lobLetterId,
       lob_tracking_number: trackingNumber,
       expected_response_by: expectedResponseBy,
+      bite_id: biteId,
     });
+
+    if (biteId) await incrementBiteLetterCount(biteId);
 
     return Response.json({
       success: true,

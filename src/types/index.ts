@@ -95,6 +95,28 @@ export interface DisputeRecord {
   expected_response_by: string;
   status: DisputeStatus;
   created_at: string;
+  /** Which Bite (batch of letters sent together) this dispute belongs to, if any */
+  bite_id: string | null;
+}
+
+/** A dated batch of dispute letters sent together in one visit to Dispute Letters -- shown on History */
+export interface Bite {
+  id: string;
+  user_id: string;
+  sent_at: string;
+  letter_count: number;
+  created_at: string;
+  /** Populated by getBitesByUser() via a join -- not a DB column */
+  disputes?: DisputeRecord[];
+}
+
+/** A saved analysis row -- persists what AnalysisContext otherwise only holds in memory */
+export interface AnalysisRecord {
+  id: string;
+  user_id: string;
+  user_info: UserInfo;
+  result: AnalysisResult;
+  created_at: string;
 }
 
 export interface AnalysisResult {

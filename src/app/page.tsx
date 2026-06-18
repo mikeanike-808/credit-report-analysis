@@ -171,7 +171,7 @@ export default function LandingPage() {
               <span style={{ color: '#53A02C' }}>GATOR</span>
             </span>
           </div>
-          <Link href="/analyze" className="lp-nav-cta">Analyze My Report</Link>
+          <Link href="/upload" className="lp-nav-cta">Analyze My Report</Link>
         </nav>
 
         {/* Hero */}
@@ -184,7 +184,7 @@ export default function LandingPage() {
           <p className="lp-hero-sub">
             Upload your credit report and get an instant AI analysis, FCRA-categorized dispute letters, and a ranked action plan — in under 60 seconds.
           </p>
-          <Link href="/analyze" className="lp-hero-cta">Analyze My Credit Report →</Link>
+          <Link href="/upload" className="lp-hero-cta">Analyze My Credit Report →</Link>
           <p className="lp-hero-note">No account required · Your data is never stored · Free to use</p>
         </section>
 
@@ -316,7 +316,7 @@ export default function LandingPage() {
           <div className="lp-cta-panel">
             <h2>Start Your Credit Dispute Journey Today</h2>
             <p>Upload your credit report and get your full analysis, FCRA dispute letters, and action plan in under 60 seconds — completely free. No credit repair company required.</p>
-            <Link href="/analyze" className="lp-cta-btn">Analyze My Credit Report — Free →</Link>
+            <Link href="/upload" className="lp-cta-btn">Analyze My Credit Report — Free →</Link>
             <p style={{ marginTop: 16, fontSize: 13, color: '#94a3b8' }}>No account required · No data stored · Instant results</p>
           </div>
         </div>
@@ -340,7 +340,7 @@ export default function LandingPage() {
             Not affiliated with Equifax, Experian, TransUnion, AnnualCreditReport.com, or SmartCredit.
           </p>
           <p style={{ marginTop: 12 }}>
-            <Link href="/analyze">Analyze My Report</Link> &nbsp;&middot;&nbsp; &copy; {new Date().getFullYear()} DisputeGator
+            <Link href="/upload">Analyze My Report</Link> &nbsp;&middot;&nbsp; &copy; {new Date().getFullYear()} DisputeGator
           </p>
         </footer>
       </div>

@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import OpenAI from 'openai';
+import { auth } from '@clerk/nextjs/server';
 import { analyzeReport } from '@/lib/openai';
+import { saveAnalysis } from '@/lib/analyses';
 import { RequestBodySchema } from '@/lib/schemas';
 
 export async function POST(req: NextRequest) {
   try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'auth_required' }, { status: 401 });
+    }
+
     const raw: unknown = await req.json();
     const parseResult = RequestBodySchema.safeParse(raw);
     if (!parseResult.success) {
@@ -55,6 +62,9 @@ export async function POST(req: NextRequest) {
         negativeItemCount: normalizedItems.length,
       },
     };
+
+    await saveAnalysis(userId, userInfo, result);
+
     return NextResponse.json({ success: true, result });
 
   } catch (err) {

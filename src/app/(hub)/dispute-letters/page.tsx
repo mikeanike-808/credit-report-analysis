@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, SignInButton } from '@clerk/nextjs';
-import { Brand } from '@/components/ui/Brand';
 import { Icon } from '@/components/ui/Icon';
 import { BureauMark } from '@/components/ui/BureauMark';
 import { BUREAUS } from '@/lib/bureaus';
 import { buildCreditorLetter } from '@/lib/letters';
 import { useAnalysis } from '@/context/AnalysisContext';
+import { useEnsureAnalysis } from '@/lib/useEnsureAnalysis';
 import type { NegativeItem, Bureau } from '@/types';
 
 // ─── Strength badge ───────────────────────────────────────────────────────────
@@ -48,11 +47,11 @@ interface LetterModalProps {
   disputeCategory: string;
   body: string;
   onClose: () => void;
+  ensureBiteId: () => Promise<string | null>;
 }
 
-function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, onClose }: LetterModalProps) {
+function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, onClose, ensureBiteId }: LetterModalProps) {
   const router = useRouter();
-  const { isSignedIn } = useUser();
   const [copied, setCopied] = useState(false);
   const [phase, setPhase] = useState<MarkPhase>('idle');
   const [sentDate, setSentDate] = useState(new Date().toISOString().slice(0, 10));
@@ -87,10 +86,14 @@ function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, o
   const submitMarkSent = async () => {
     setPhase('loading');
     try {
+      const biteId = await ensureBiteId();
       const res = await fetch('/api/disputes/mark-sent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bureauKey: bureau.key, creditor, accountNumber, disputeCategory, sentAt: new Date(sentDate).toISOString() }),
+        body: JSON.stringify({
+          bureauKey: bureau.key, creditor, accountNumber, disputeCategory,
+          sentAt: new Date(sentDate).toISOString(), biteId,
+        }),
       });
       const data = await res.json() as { success: boolean; data?: { expectedResponseBy: string } };
       if (data.success && data.data) {
@@ -185,8 +188,8 @@ function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, o
                   </div>
                 </div>
               </div>
-              <button className="btn btn-outline" style={{ fontSize: 12.5 }} onClick={() => router.push('/tracking')}>
-                View Tracker →
+              <button className="btn btn-outline" style={{ fontSize: 12.5 }} onClick={() => router.push('/history')}>
+                View History →
               </button>
             </div>
           ) : (
@@ -194,13 +197,7 @@ function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, o
               <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>
                 Track this dispute
               </div>
-              {!isSignedIn ? (
-                <SignInButton mode="modal">
-                  <button className="btn btn-outline" style={{ fontSize: 13 }}>
-                    <Icon name="check" size={14} /> Mark as Sent (sign in to track)
-                  </button>
-                </SignInButton>
-              ) : phase === 'picking' || phase === 'loading' ? (
+              {phase === 'picking' || phase === 'loading' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <label style={{ fontSize: 13, color: 'var(--ink-2)', fontWeight: 600 }}>
                     Date sent:
@@ -401,18 +398,33 @@ function BureauColumn({ bureau, items, onView }: BureauColumnProps) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function DisputesPage() {
-  const router = useRouter();
+export default function DisputeLettersPage() {
   const { result, userInfo } = useAnalysis();
+  const { ready } = useEnsureAnalysis();
   const [modal, setModal] = useState<{
     bureau: Bureau;
     item: NegativeItem;
     body: string;
   } | null>(null);
 
-  useEffect(() => {
-    if (!result) router.replace('/analyze');
-  }, [result, router]);
+  // One Bite per visit: created lazily on the first "Mark as Sent" so a visit
+  // where the user only views letters doesn't leave an empty History entry.
+  const biteIdRef = useRef<string | null>(null);
+  const biteCreationRef = useRef<Promise<string | null> | null>(null);
+  const ensureBiteId = async (): Promise<string | null> => {
+    if (biteIdRef.current) return biteIdRef.current;
+    if (!biteCreationRef.current) {
+      biteCreationRef.current = fetch('/api/bites', { method: 'POST' })
+        .then((r) => r.json())
+        .then((data: { success: boolean; data?: { id: string } }) => {
+          const id = data.success && data.data ? data.data.id : null;
+          biteIdRef.current = id;
+          return id;
+        })
+        .catch(() => null);
+    }
+    return biteCreationRef.current;
+  };
 
   // Group by primaryBureau — each item appears in exactly ONE column, no duplicates.
   // Normalize to lowercase because the AI may return "Experian" instead of "experian".
@@ -444,91 +456,74 @@ export default function DisputesPage() {
     setModal({ bureau, item, body });
   };
 
-  if (!result || !userInfo) return null;
+  if (!ready || !result || !userInfo) return null;
 
   return (
-    <div className="page-pad">
-      <div className="shell">
-        {/* Top bar */}
-        <header className="topbar">
-          <Brand />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button className="btn btn-ghost" style={{ fontSize: 14 }} onClick={() => router.push('/tracking')}>
-              <Icon name="check" size={15} /> Dispute Tracker
-            </button>
-            <button className="btn btn-ghost" style={{ fontSize: 14 }} onClick={() => router.push('/results')}>
-              <Icon name="refresh" size={15} /> Back to Results
-            </button>
-          </div>
-        </header>
+    <div style={{ padding: 'clamp(22px,3vw,36px) clamp(18px,3vw,38px) 48px' }}>
 
-        <div style={{ padding: 'clamp(22px,3vw,36px) clamp(18px,3vw,38px) 48px' }}>
-
-          {/* Page heading */}
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-              <div>
-                <h1 style={{ margin: 0, fontSize: 'clamp(26px,3.2vw,34px)', fontWeight: 800, letterSpacing: '-.02em', color: 'var(--ink)' }}>
-                  Dispute Letters
-                </h1>
-                <p style={{ margin: '7px 0 0', color: 'var(--ink-3)', fontSize: 14.5 }}>
-                  {totalDisputes} negative item{totalDisputes !== 1 ? 's' : ''} across {totalBureausAffected} bureau{totalBureausAffected !== 1 ? 's' : ''} — click the eye icon to view and send each letter.
-                </p>
-              </div>
-
-              {/* FCRA callout */}
-              <div style={{
-                background: 'var(--blue-tintbg)', border: '1px solid #bbf7d0',
-                borderRadius: 12, padding: '12px 16px', maxWidth: 300,
-                display: 'flex', alignItems: 'flex-start', gap: 10,
-              }}>
-                <span style={{ fontSize: 18, lineHeight: 1, flex: 'none', marginTop: 1 }}>⚖️</span>
-                <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.55 }}>
-                  <strong style={{ color: 'var(--blue-ink)' }}>FCRA §1681i:</strong> Bureaus have <strong>30 days</strong> to investigate and respond to your dispute letters after receipt.
-                </div>
-              </div>
-            </div>
-
-            {/* Legend */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 18, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 600 }}>Priority:</span>
-              {[['#dc2626', 'High'], ['#b45309', 'Medium'], ['#16a34a', 'Low']].map(([color, label]) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
-                  <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{label}</span>
-                </div>
-              ))}
-              <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 600, marginLeft: 8 }}>Strength:</span>
-              {['Strong', 'Moderate', 'Weak'].map((s) => (
-                <span key={s} style={{
-                  fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                  background: STRENGTH_BG[s], color: STRENGTH_COLOR[s],
-                }}>{s}</span>
-              ))}
-            </div>
+      {/* Page heading */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 'clamp(26px,3.2vw,34px)', fontWeight: 800, letterSpacing: '-.02em', color: 'var(--ink)' }}>
+              Dispute Letters
+            </h1>
+            <p style={{ margin: '7px 0 0', color: 'var(--ink-3)', fontSize: 14.5 }}>
+              {totalDisputes} negative item{totalDisputes !== 1 ? 's' : ''} across {totalBureausAffected} bureau{totalBureausAffected !== 1 ? 's' : ''} — click the eye icon to view and send each letter.
+            </p>
           </div>
 
-          {/* Three-bureau columns */}
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            {BUREAUS.map((bureau) => (
-              <BureauColumn
-                key={bureau.key}
-                bureau={bureau}
-                items={byBureau[bureau.key] ?? []}
-                onView={openLetter}
-              />
-            ))}
-          </div>
-
-          {/* Footer note */}
+          {/* FCRA callout */}
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            marginTop: 32, color: 'var(--muted)', fontSize: 12.5,
+            background: 'var(--blue-tintbg)', border: '1px solid #bbf7d0',
+            borderRadius: 12, padding: '12px 16px', maxWidth: 300,
+            display: 'flex', alignItems: 'flex-start', gap: 10,
           }}>
-            <Icon name="lock" size={13} />
-            Each letter is addressed to the specific bureau that reported the item. Your data is never stored.
+            <span style={{ fontSize: 18, lineHeight: 1, flex: 'none', marginTop: 1 }}>⚖️</span>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+              <strong style={{ color: 'var(--blue-ink)' }}>FCRA §1681i:</strong> Bureaus have <strong>30 days</strong> to investigate and respond to your dispute letters after receipt.
+            </div>
           </div>
         </div>
+
+        {/* Legend */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 18, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 600 }}>Priority:</span>
+          {[['#dc2626', 'High'], ['#b45309', 'Medium'], ['#16a34a', 'Low']].map(([color, label]) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+              <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{label}</span>
+            </div>
+          ))}
+          <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 600, marginLeft: 8 }}>Strength:</span>
+          {['Strong', 'Moderate', 'Weak'].map((s) => (
+            <span key={s} style={{
+              fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+              background: STRENGTH_BG[s], color: STRENGTH_COLOR[s],
+            }}>{s}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Three-bureau columns */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        {BUREAUS.map((bureau) => (
+          <BureauColumn
+            key={bureau.key}
+            bureau={bureau}
+            items={byBureau[bureau.key] ?? []}
+            onView={openLetter}
+          />
+        ))}
+      </div>
+
+      {/* Footer note */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        marginTop: 32, color: 'var(--muted)', fontSize: 12.5,
+      }}>
+        <Icon name="lock" size={13} />
+        Each letter is addressed to the specific bureau that reported the item.
       </div>
 
       {modal && (
@@ -539,6 +534,7 @@ export default function DisputesPage() {
           disputeCategory={modal.item.disputeCategory}
           body={modal.body}
           onClose={() => setModal(null)}
+          ensureBiteId={ensureBiteId}
         />
       )}
     </div>

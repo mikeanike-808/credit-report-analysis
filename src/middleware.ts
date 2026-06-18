@@ -1,8 +1,20 @@
-import { clerkMiddleware } from '@clerk/nextjs/server';
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-// All routes are public — auth is optional.
-// Clerk is still initialized so useUser(), UserButton, SignInButton etc. work everywhere.
-export default clerkMiddleware();
+// Only the marketing landing page, the sign-in/sign-up pages themselves, and
+// Clerk's own routes are public. Everything else -- upload, home, dispute
+// letters, history -- requires sign-in.
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api/webhooks(.*)',
+]);
+
+export default clerkMiddleware(async (auth, req) => {
+  if (!isPublicRoute(req)) {
+    await auth.protect();
+  }
+});
 
 export const config = {
   matcher: [

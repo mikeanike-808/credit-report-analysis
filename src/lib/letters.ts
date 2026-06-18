@@ -425,13 +425,9 @@ ${bureau.addr}
 
 RE: Formal Dispute -- ${creditor} | ${bureau.name}
 
-${SEP}
-THIS LETTER HAS BEEN SENT BY ME PERSONALLY
-${SEP}
-
 To Whom It May Concern,
 
-THIS DOCUMENT HAS BEEN SENT BY ME PERSONALLY (${name}). I am asserting my rights under the Fair Credit Reporting Act (FCRA), 15 U.S.C. Section 1681 et seq. I am not utilizing any credit repair organization as defined under the Credit Repair Organizations Act (CROA), 15 U.S.C. Section 1679. I composed and submitted this letter myself. I am aware that no law requires me to provide a power of attorney or to prove personal authorship in order to submit a consumer dispute.
+I am asserting my rights under the Fair Credit Reporting Act (FCRA), 15 U.S.C. Section 1681 et seq. I am not utilizing any credit repair organization as defined under the Credit Repair Organizations Act (CROA), 15 U.S.C. Section 1679. I composed and submitted this letter myself. I am aware that no law requires me to provide a power of attorney or to prove personal authorship in order to submit a consumer dispute.
 
 Under the FCRA and the Metro 2 data field reporting standards established by the Consumer Data Industry Association (CDIA), all furnished information must be accurate, complete, and verifiable at the time of reporting. Any deviation from these standards jeopardizes the integrity of the data and my rights as a consumer.
 
@@ -476,8 +472,6 @@ Should you fail to act in full compliance with the FCRA, I reserve the right to 
 Sincerely,
 
 ${name}
-
-THIS LETTER WAS SENT BY ME PERSONALLY -- ${name}.
 
 Enclosures:
   - Copy of government-issued photo identification
