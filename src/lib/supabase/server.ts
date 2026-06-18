@@ -1,26 +1,14 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
+// Server-only, used exclusively from src/lib/disputes.ts and src/lib/analyses.ts,
+// which are only ever called from API routes that already check Clerk's auth()
+// and reject unauthenticated requests before reaching this client. The service
+// role key bypasses RLS -- there is no Supabase Auth session to bridge from
+// Clerk here, so auth.uid()-based policies can never resolve a user; the
+// Clerk auth() check in each route is the actual trust boundary, not RLS.
 export async function createClient() {
-  const cookieStore = await cookies();
-  return createServerClient(
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
-          } catch {
-            // Called from a Server Component — cookies can only be set in middleware or route handlers
-          }
-        },
-      },
-    },
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 }
