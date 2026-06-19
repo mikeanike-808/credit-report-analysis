@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/Icon';
 import { BUREAUS } from '@/lib/bureaus';
 import { buildCreditorLetter } from '@/lib/letters';
+import { useAnalysis } from '@/context/AnalysisContext';
 import type { AnalysisRecord, Bureau, NegativeItem } from '@/types';
 
 function bureauByKey(key: string): Bureau {
@@ -274,7 +276,61 @@ function AnalysisCard({ analysis, index, total, onView, onDelete }: AnalysisCard
   );
 }
 
+// ─── One past report card -- click opens that analysis on Home ───────────────
+
+interface ReportCardProps {
+  analysis: AnalysisRecord;
+  callNumber: number;
+  onOpen: () => void;
+}
+
+function ReportCard({ analysis, callNumber, onOpen }: ReportCardProps) {
+  const { overall, negativeItems } = analysis.result;
+  return (
+    <button
+      onClick={onOpen}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        width: '100%', textAlign: 'left', cursor: 'pointer',
+        border: '1px solid var(--border)', borderRadius: 14, background: '#fff',
+        padding: '14px 16px', transition: 'border-color .14s, box-shadow .14s',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--blue-strong)';
+        (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 16px rgba(0,0,0,.06)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+        (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none';
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--ink)' }}>
+          Report #{callNumber}
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 }}>
+          {new Date(analysis.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          {' · '}
+          {new Date(analysis.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>
+          {negativeItems.length} negative item{negativeItems.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+      <div style={{
+        flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+        width: 46, height: 46, borderRadius: '50%', background: 'var(--blue-tintbg)',
+        border: '1px solid #bbf7d0', justifyContent: 'center',
+      }}>
+        <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--blue-strong)', lineHeight: 1 }}>{overall.health}</span>
+      </div>
+    </button>
+  );
+}
+
 export default function HistoryPage() {
+  const router = useRouter();
+  const { setResult } = useAnalysis();
   const [analyses, setAnalyses] = useState<AnalysisRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{ bureau: Bureau; item: NegativeItem; body: string } | null>(null);
@@ -311,6 +367,14 @@ export default function HistoryPage() {
     setAnalyses((prev) => prev.filter((a) => a.id !== id));
   };
 
+  // Loads a past analysis into AnalysisContext as the active one and takes
+  // the user to Home to view it -- same context the live analyze flow uses,
+  // so Home renders it exactly as it did right after that original AI call.
+  const openReport = (analysis: AnalysisRecord) => {
+    setResult(analysis.result, analysis.user_info);
+    router.push('/home');
+  };
+
   return (
     <div style={{ padding: 'clamp(22px,3vw,36px) clamp(18px,3vw,38px) 44px' }}>
       <div style={{ marginBottom: 30 }}>
@@ -337,17 +401,46 @@ export default function HistoryPage() {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {analyses.map((analysis, idx) => (
-            <AnalysisCard
-              key={analysis.id}
-              analysis={analysis}
-              index={idx}
-              total={analyses.length}
-              onView={(item) => openLetter(analysis, item)}
-              onDelete={handleDelete}
-            />
-          ))}
+        <div className="ap-grid" style={{ display: 'grid', gap: 18, alignItems: 'start' }}>
+          <div>
+            <div style={{ marginBottom: 14 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--ink)' }}>Dispute Letters</h2>
+              <p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>
+                Every letter generated, grouped by the analysis that created it.
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {analyses.map((analysis, idx) => (
+                <AnalysisCard
+                  key={analysis.id}
+                  analysis={analysis}
+                  index={idx}
+                  total={analyses.length}
+                  onView={(item) => openLetter(analysis, item)}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ marginBottom: 14 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--ink)' }}>Past Reports</h2>
+              <p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>
+                Click a report to view its full analysis on Home.
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {analyses.map((analysis, idx) => (
+                <ReportCard
+                  key={analysis.id}
+                  analysis={analysis}
+                  callNumber={analyses.length - idx}
+                  onOpen={() => openReport(analysis)}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
