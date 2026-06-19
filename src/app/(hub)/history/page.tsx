@@ -118,11 +118,25 @@ function LetterViewModal({ bureau, creditor, disputeCategory, body, onClose }: L
 interface LetterRowProps {
   item: NegativeItem;
   onView: () => void;
+  onDelete: () => Promise<void>;
   isLast: boolean;
 }
 
-function LetterRow({ item, onView, isLast }: LetterRowProps) {
+function LetterRow({ item, onView, onDelete, isLast }: LetterRowProps) {
   const bureau = bureauByKey(item.primaryBureau || item.bureaus[0] || 'experian');
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      await onDelete();
+    } finally {
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
@@ -140,21 +154,58 @@ function LetterRow({ item, onView, isLast }: LetterRowProps) {
           <span>{item.bureaus.map((b) => bureauByKey(b).abbr).join(', ')}</span>
         </div>
       </div>
-      <button
-        onClick={onView}
-        title="View generated letter"
-        style={{
-          width: 32, height: 32, borderRadius: 8, flex: 'none',
-          display: 'grid', placeItems: 'center',
-          background: 'var(--blue-tintbg)', border: `1px solid ${bureau.color}33`,
-          color: bureau.color, cursor: 'pointer',
-        }}
-      >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-          <circle cx="12" cy="12" r="3" />
-        </svg>
-      </button>
+
+      {confirming ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+          <span style={{ fontSize: 11.5, color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>Delete?</span>
+          <button
+            className="btn btn-outline"
+            style={{ fontSize: 11, padding: '4px 9px', color: 'var(--red)', borderColor: 'var(--red)' }}
+            onClick={confirmDelete}
+            disabled={deleting}
+          >
+            {deleting ? <span className="spin" style={{ width: 12, height: 12 }} /> : 'Delete'}
+          </button>
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: 11, padding: '4px 9px' }}
+            onClick={() => setConfirming(false)}
+            disabled={deleting}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+          <button
+            onClick={onView}
+            title="View generated letter"
+            style={{
+              width: 32, height: 32, borderRadius: 8, flex: 'none',
+              display: 'grid', placeItems: 'center',
+              background: 'var(--blue-tintbg)', border: `1px solid ${bureau.color}33`,
+              color: bureau.color, cursor: 'pointer',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setConfirming(true)}
+            title="Delete this letter"
+            style={{
+              width: 32, height: 32, borderRadius: 8, flex: 'none',
+              display: 'grid', placeItems: 'center',
+              background: 'transparent', border: '1px solid var(--border-2)',
+              color: 'var(--ink-3)', cursor: 'pointer',
+            }}
+          >
+            <Icon name="trash" size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -167,9 +218,10 @@ interface AnalysisCardProps {
   total: number;
   onView: (item: NegativeItem) => void;
   onDelete: (id: string) => void;
+  onDeleteItem: (itemIndex: number) => Promise<void>;
 }
 
-function AnalysisCard({ analysis, index, total, onView, onDelete }: AnalysisCardProps) {
+function AnalysisCard({ analysis, index, total, onView, onDelete, onDeleteItem }: AnalysisCardProps) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -266,6 +318,7 @@ function AnalysisCard({ analysis, index, total, onView, onDelete }: AnalysisCard
                 key={`${item.creditor}-${item.accountNumber}-${idx}`}
                 item={item}
                 onView={() => onView(item)}
+                onDelete={() => onDeleteItem(idx)}
                 isLast={idx === items.length - 1}
               />
             ))
@@ -282,49 +335,102 @@ interface ReportCardProps {
   analysis: AnalysisRecord;
   callNumber: number;
   onOpen: () => void;
+  onDelete: () => void;
 }
 
-function ReportCard({ analysis, callNumber, onOpen }: ReportCardProps) {
+function ReportCard({ analysis, callNumber, onOpen, onDelete }: ReportCardProps) {
   const { overall, negativeItems } = analysis.result;
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/analyses/${analysis.id}`, { method: 'DELETE' });
+      const data = await res.json() as { success: boolean };
+      if (data.success) onDelete();
+    } finally {
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
   return (
-    <button
-      onClick={onOpen}
+    <div
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-        width: '100%', textAlign: 'left', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 8,
         border: '1px solid var(--border)', borderRadius: 14, background: '#fff',
         padding: '14px 16px', transition: 'border-color .14s, box-shadow .14s',
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--blue-strong)';
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 16px rgba(0,0,0,.06)';
+        (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--blue-strong)';
+        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 16px rgba(0,0,0,.06)';
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none';
+        (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)';
+        (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--ink)' }}>
-          Report #{callNumber}
+      <button
+        onClick={onOpen}
+        style={{
+          flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          textAlign: 'left', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--ink)' }}>
+            Report #{callNumber}
+          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 }}>
+            {new Date(analysis.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            {' · '}
+            {new Date(analysis.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>
+            {negativeItems.length} negative item{negativeItems.length !== 1 ? 's' : ''}
+          </div>
         </div>
-        <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 }}>
-          {new Date(analysis.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          {' · '}
-          {new Date(analysis.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+        <div style={{
+          flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+          width: 46, height: 46, borderRadius: '50%', background: 'var(--blue-tintbg)',
+          border: '1px solid #bbf7d0', justifyContent: 'center',
+        }}>
+          <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--blue-strong)', lineHeight: 1 }}>{overall.health}</span>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>
-          {negativeItems.length} negative item{negativeItems.length !== 1 ? 's' : ''}
+      </button>
+
+      {confirming ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+          <span style={{ fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>Delete?</span>
+          <button
+            className="btn btn-outline"
+            style={{ fontSize: 12, padding: '5px 10px', color: 'var(--red)', borderColor: 'var(--red)' }}
+            onClick={confirmDelete}
+            disabled={deleting}
+          >
+            {deleting ? <span className="spin" /> : 'Delete'}
+          </button>
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: 12, padding: '5px 10px' }}
+            onClick={() => setConfirming(false)}
+            disabled={deleting}
+          >
+            Cancel
+          </button>
         </div>
-      </div>
-      <div style={{
-        flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-        width: 46, height: 46, borderRadius: '50%', background: 'var(--blue-tintbg)',
-        border: '1px solid #bbf7d0', justifyContent: 'center',
-      }}>
-        <span style={{ fontWeight: 800, fontSize: 15, color: 'var(--blue-strong)', lineHeight: 1 }}>{overall.health}</span>
-      </div>
-    </button>
+      ) : (
+        <button
+          className="btn btn-ghost"
+          title="Delete this report"
+          style={{ flex: 'none', padding: 8, borderRadius: 8, color: 'var(--ink-3)' }}
+          onClick={() => setConfirming(true)}
+        >
+          <Icon name="trash" size={15} />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -368,6 +474,18 @@ export default function HistoryPage() {
 
   const handleDelete = (id: string) => {
     setAnalyses((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const handleDeleteItem = async (analysisId: string, itemIndex: number) => {
+    const res = await fetch(`/api/analyses/${analysisId}/items`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index: itemIndex }),
+    });
+    const data = await res.json() as { success: boolean; data?: AnalysisRecord };
+    if (data.success && data.data) {
+      setAnalyses((prev) => prev.map((a) => (a.id === analysisId ? data.data! : a)));
+    }
   };
 
   // Loads a past analysis into AnalysisContext as the active one and takes
@@ -434,6 +552,7 @@ export default function HistoryPage() {
               total={analyses.length}
               onView={(item) => openLetter(analysis, item)}
               onDelete={handleDelete}
+              onDeleteItem={(itemIndex) => handleDeleteItem(analysis.id, itemIndex)}
             />
           ))}
         </div>
@@ -445,6 +564,7 @@ export default function HistoryPage() {
               analysis={analysis}
               callNumber={analyses.length - idx}
               onOpen={() => openReport(analysis)}
+              onDelete={() => handleDelete(analysis.id)}
             />
           ))}
         </div>

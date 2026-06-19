@@ -62,6 +62,44 @@ export async function updateCompletedActions(id: string, userId: string, complet
 }
 
 /**
+ * Removes one negativeItem (and the letter generated from it) from an
+ * analysis's saved result, by its index in negativeItems[]. Recomputes
+ * stats.negativeItemCount to match. Scoped to userId like the other
+ * mutations here. Does two round trips (read-modify-write) since the
+ * service role client has no atomic JSON-array-element-removal operator.
+ */
+export async function deleteNegativeItem(id: string, userId: string, index: number): Promise<AnalysisRecord> {
+  const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from('analyses')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchError) throw new Error(`Failed to fetch analysis: ${fetchError.message}`);
+
+  const record = existing as AnalysisRecord;
+  const negativeItems = record.result.negativeItems.filter((_, i) => i !== index);
+  const updatedResult: AnalysisResult = {
+    ...record.result,
+    negativeItems,
+    stats: { ...record.result.stats, negativeItemCount: negativeItems.length },
+  };
+
+  const { data, error } = await supabase
+    .from('analyses')
+    .update({ result: updatedResult })
+    .eq('id', id)
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to delete negative item: ${error.message}`);
+  return data as AnalysisRecord;
+}
+
+/**
  * Deletes one analysis -- scoped to userId so a user can only ever delete
  * their own rows, even though this client uses the service role key and
  * would otherwise bypass that check entirely.
