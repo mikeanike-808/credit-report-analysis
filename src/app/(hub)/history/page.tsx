@@ -328,12 +328,15 @@ function ReportCard({ analysis, callNumber, onOpen }: ReportCardProps) {
   );
 }
 
+type HistoryTab = 'letters' | 'reports';
+
 export default function HistoryPage() {
   const router = useRouter();
   const { setResult } = useAnalysis();
   const [analyses, setAnalyses] = useState<AnalysisRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{ bureau: Bureau; item: NegativeItem; body: string } | null>(null);
+  const [tab, setTab] = useState<HistoryTab>('letters');
 
   useEffect(() => {
     fetch('/api/analyses')
@@ -377,7 +380,7 @@ export default function HistoryPage() {
 
   return (
     <div style={{ padding: 'clamp(22px,3vw,36px) clamp(18px,3vw,38px) 44px' }}>
-      <div style={{ marginBottom: 30 }}>
+      <div style={{ marginBottom: 22 }}>
         <h1 style={{ margin: 0, fontSize: 'clamp(26px,3.4vw,34px)', fontWeight: 800, letterSpacing: '-.02em', color: 'var(--ink)' }}>
           History
         </h1>
@@ -385,6 +388,27 @@ export default function HistoryPage() {
           Every dispute letter ever generated, grouped by the AI analysis call that created it
           {totalLetters > 0 && ` — ${totalLetters} letter${totalLetters !== 1 ? 's' : ''} across ${analyses.length} analys${analyses.length !== 1 ? 'es' : 'is'}`}.
         </p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 24, borderBottom: '1px solid var(--border-2)' }}>
+        {([
+          { key: 'letters', label: 'Dispute Letters' },
+          { key: 'reports', label: 'Past Reports' },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              padding: '10px 16px', fontSize: 14.5, fontWeight: 700,
+              color: tab === t.key ? 'var(--blue-strong)' : 'var(--ink-3)',
+              borderBottom: tab === t.key ? '2px solid var(--blue-strong)' : '2px solid transparent',
+              marginBottom: -1, transition: 'color .14s, border-color .14s',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -400,47 +424,29 @@ export default function HistoryPage() {
             Every time you run a new analysis, the letters it generates will show up here as their own batch.
           </p>
         </div>
+      ) : tab === 'letters' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {analyses.map((analysis, idx) => (
+            <AnalysisCard
+              key={analysis.id}
+              analysis={analysis}
+              index={idx}
+              total={analyses.length}
+              onView={(item) => openLetter(analysis, item)}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
       ) : (
-        <div className="ap-grid" style={{ display: 'grid', gap: 18, alignItems: 'start' }}>
-          <div>
-            <div style={{ marginBottom: 14 }}>
-              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--ink)' }}>Dispute Letters</h2>
-              <p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>
-                Every letter generated, grouped by the analysis that created it.
-              </p>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {analyses.map((analysis, idx) => (
-                <AnalysisCard
-                  key={analysis.id}
-                  analysis={analysis}
-                  index={idx}
-                  total={analyses.length}
-                  onView={(item) => openLetter(analysis, item)}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ marginBottom: 14 }}>
-              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--ink)' }}>Past Reports</h2>
-              <p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>
-                Click a report to view its full analysis on Home.
-              </p>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {analyses.map((analysis, idx) => (
-                <ReportCard
-                  key={analysis.id}
-                  analysis={analysis}
-                  callNumber={analyses.length - idx}
-                  onOpen={() => openReport(analysis)}
-                />
-              ))}
-            </div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {analyses.map((analysis, idx) => (
+            <ReportCard
+              key={analysis.id}
+              analysis={analysis}
+              callNumber={analyses.length - idx}
+              onOpen={() => openReport(analysis)}
+            />
+          ))}
         </div>
       )}
 
