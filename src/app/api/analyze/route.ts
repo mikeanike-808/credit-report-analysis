@@ -63,7 +63,9 @@ export async function POST(req: NextRequest) {
       },
     };
 
+    const tSaveStart = Date.now();
     await saveAnalysis(userId, userInfo, result);
+    console.info(`[api/analyze] saveAnalysis took ${Date.now() - tSaveStart}ms`);
 
     return NextResponse.json({ success: true, result });
 

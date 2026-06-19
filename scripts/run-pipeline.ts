@@ -125,23 +125,27 @@ async function runFull(): Promise<void> {
   const fullName = `${SYNTHETIC_USER_INFO.first} ${SYNTHETIC_USER_INFO.last}`;
   const fullAddress = `${SYNTHETIC_USER_INFO.address}, ${SYNTHETIC_USER_INFO.city}, ${SYNTHETIC_USER_INFO.state} ${SYNTHETIC_USER_INFO.zip}`;
 
+  const t0 = Date.now();
   const extraction = await extractReportData(client, pdfText, fullName, fullAddress);
+  const t1 = Date.now();
+  console.log(`[timing] extraction (Call 1): ${t1 - t0}ms`);
   const inventory = formatInventory(extraction);
   const minimumExpected = computeMinimumExpectedItems(extraction);
   console.log(`minimumExpected (code-side floor): ${minimumExpected}`);
 
-  const firstResult = await runAnalysisCall(client, inventory, fullName, fullAddress, 42);
-  console.log(`first attempt: ${firstResult.negativeItems.length} items`);
+  const [firstResult, retryResult] = await Promise.all([
+    runAnalysisCall(client, inventory, fullName, fullAddress, 42),
+    runAnalysisCall(client, inventory, fullName, fullAddress, 99),
+  ]);
+  const t2 = Date.now();
+  console.log(`[timing] Call 2 raced (${firstResult.negativeItems.length} vs ${retryResult.negativeItems.length} items): ${t2 - t1}ms`);
 
-  let kept = firstResult;
-  let usedRetry = false;
-  if (firstResult.negativeItems.length < minimumExpected) {
-    console.log(`below floor (${minimumExpected}) -- retrying with seed 99`);
-    const retryResult = await runAnalysisCall(client, inventory, fullName, fullAddress, 99);
-    console.log(`retry attempt: ${retryResult.negativeItems.length} items`);
-    usedRetry = retryResult.negativeItems.length >= firstResult.negativeItems.length;
-    kept = usedRetry ? retryResult : firstResult;
+  const usedRetry = retryResult.negativeItems.length >= firstResult.negativeItems.length;
+  const kept = usedRetry ? retryResult : firstResult;
+  if (firstResult.negativeItems.length < minimumExpected && retryResult.negativeItems.length < minimumExpected) {
+    console.log(`Both attempts below floor (${minimumExpected})`);
   }
+  console.log(`[timing] TOTAL: ${Date.now() - t0}ms`);
 
   console.log(`KEPT: ${usedRetry ? 'retry' : 'first'} attempt -- ${kept.negativeItems.length} items`);
   for (const line of summarizeItems(kept.negativeItems)) console.log(`  - ${line}`);

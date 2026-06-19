@@ -1,170 +1,176 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { BUREAUS } from '@/lib/bureaus';
-import type { Bite, DisputeRecord, DisputeStatus } from '@/types';
+import { buildCreditorLetter } from '@/lib/letters';
+import type { AnalysisRecord, Bureau, NegativeItem } from '@/types';
 
-function daysUntil(dateStr: string): number {
-  const diff = new Date(dateStr).getTime() - Date.now();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+function bureauByKey(key: string): Bureau {
+  return BUREAUS.find((b) => b.key === key.toLowerCase()) ?? BUREAUS[0]!;
 }
 
-function bureauColor(key: string): string {
-  return BUREAUS.find((b) => b.key === key)?.color ?? '#94a3b8';
+// ─── Read-only letter viewer -- no "Mark as Sent" here, that lives on Dispute Letters ───
+
+interface LetterViewModalProps {
+  bureau: Bureau;
+  creditor: string;
+  disputeCategory: string;
+  body: string;
+  onClose: () => void;
 }
 
-function bureauName(key: string): string {
-  return BUREAUS.find((b) => b.key === key)?.name ?? key;
-}
+function LetterViewModal({ bureau, creditor, disputeCategory, body, onClose }: LetterViewModalProps) {
+  const [copied, setCopied] = useState(false);
 
-function bureauAbbr(key: string): string {
-  return BUREAUS.find((b) => b.key === key)?.abbr ?? key.slice(0, 2).toUpperCase();
-}
+  const copy = () => {
+    navigator.clipboard?.writeText(body).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
 
-const STATUS_LABEL: Record<DisputeStatus, string> = {
-  sent: 'Awaiting Response',
-  responded: 'Bureau Responded',
-  resolved: 'Resolved',
-  expired: 'Deadline Passed',
-};
+  const download = () => {
+    const blob = new Blob([body], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Dispute Letter — ${creditor} — ${bureau.name}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
-const STATUS_COLOR: Record<DisputeStatus, string> = {
-  sent: '#16a34a',
-  responded: '#b45309',
-  resolved: '#64748b',
-  expired: '#dc2626',
-};
-
-const STATUS_BG: Record<DisputeStatus, string> = {
-  sent: '#f0fdf4',
-  responded: '#fdf0d5',
-  resolved: '#f1f5f9',
-  expired: '#fde8e8',
-};
-
-interface DisputeCardProps {
-  dispute: DisputeRecord;
-  onStatusUpdate: (id: string, status: DisputeStatus) => void;
-}
-
-function DisputeCard({ dispute, onStatusUpdate }: DisputeCardProps) {
-  const [updating, setUpdating] = useState(false);
-  const days = daysUntil(dispute.expected_response_by);
-  const isOverdue = days < 0 && dispute.status === 'sent';
-  const color = bureauColor(dispute.bureau_key);
-
-  const update = async (status: DisputeStatus) => {
-    setUpdating(true);
-    try {
-      const res = await fetch(`/api/disputes/${dispute.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      const data = await res.json() as { success: boolean };
-      if (data.success) onStatusUpdate(dispute.id, status);
-    } finally {
-      setUpdating(false);
-    }
+  const print = () => {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(
+      `<pre style="font:14px/1.6 Georgia,serif;white-space:pre-wrap;padding:48px;max-width:720px;margin:auto">${body.replace(/</g, '&lt;')}</pre>`
+    );
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 250);
   };
 
   return (
-    <div style={{
-      border: '1px solid var(--border)', borderRadius: 14,
-      overflow: 'hidden', background: '#fff',
-    }}>
-      <div style={{ height: 4, background: color }} />
-      <div style={{ padding: '18px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(5,46,22,.38)',
+        backdropFilter: 'blur(3px)', display: 'grid', placeItems: 'center',
+        padding: 24, zIndex: 50,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 18, width: 'min(740px,100%)',
+          maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+          boxShadow: '0 24px 64px -12px rgba(0,0,0,.22)', overflow: 'hidden',
+        }}
+      >
+        <div style={{ height: 5, background: bureau.color }} />
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 22px', borderBottom: '1px solid var(--border-2)',
+        }}>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 15.5, color: 'var(--ink)' }}>{dispute.creditor}</div>
-            <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 }}>
-              {dispute.dispute_category}
-              {dispute.account_number && <span style={{ marginLeft: 8 }}>· #{dispute.account_number}</span>}
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>
+              {bureau.name} — {creditor}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 1 }}>
+              {disputeCategory} · generated letter (read-only)
             </div>
           </div>
-          <span style={{
-            fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
-            background: color + '18', color, border: `1px solid ${color}44`,
-          }}>
-            {bureauAbbr(dispute.bureau_key)} · {bureauName(dispute.bureau_key)}
-          </span>
+          <button className="btn btn-ghost" style={{ padding: 8, borderRadius: 8 }} onClick={onClose} aria-label="Close">
+            <Icon name="close" size={17} />
+          </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 2 }}>Sent</div>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>
-              {new Date(dispute.sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--ink-4)', marginTop: 1 }}>
-              {dispute.send_method === 'auto' ? '✉ Certified Mail' : '✓ Manual'}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 2 }}>Response Due</div>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: isOverdue ? '#dc2626' : 'var(--ink)' }}>
-              {new Date(dispute.expected_response_by).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </div>
-            {dispute.status === 'sent' && (
-              <div style={{ fontSize: 11.5, marginTop: 1, fontWeight: 700, color: isOverdue ? '#dc2626' : '#16a34a' }}>
-                {isOverdue ? `Overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}` : `${days} day${days === 1 ? '' : 's'} remaining`}
-              </div>
-            )}
-          </div>
-          {dispute.lob_tracking_number && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 2 }}>USPS Tracking</div>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--blue)', fontFamily: 'monospace' }}>
-                {dispute.lob_tracking_number}
-              </div>
-            </div>
-          )}
+        <div style={{ padding: '22px 26px', overflowY: 'auto', background: '#fafcf9', flex: 1 }}>
+          <pre style={{
+            margin: 0, whiteSpace: 'pre-wrap',
+            fontFamily: "'Plus Jakarta Sans', Georgia, serif",
+            fontSize: 13.5, lineHeight: 1.75, color: '#1e293b',
+          }}>
+            {body}
+          </pre>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{
-            fontSize: 12.5, fontWeight: 700, padding: '5px 12px', borderRadius: 20,
-            background: STATUS_BG[dispute.status],
-            color: STATUS_COLOR[dispute.status],
-          }}>
-            {STATUS_LABEL[dispute.status]}
-          </span>
-
-          {dispute.status === 'sent' && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-outline" style={{ fontSize: 12.5, padding: '6px 14px' }} onClick={() => update('responded')} disabled={updating}>
-                Mark Responded
-              </button>
-              <button className="btn btn-outline" style={{ fontSize: 12.5, padding: '6px 14px' }} onClick={() => update('resolved')} disabled={updating}>
-                Mark Resolved
-              </button>
-            </div>
-          )}
-          {dispute.status === 'responded' && (
-            <button className="btn btn-outline" style={{ fontSize: 12.5, padding: '6px 14px' }} onClick={() => update('resolved')} disabled={updating}>
-              Mark Resolved
-            </button>
-          )}
+        <div style={{ borderTop: '1px solid var(--border-2)', padding: '14px 22px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" onClick={copy}>
+            <Icon name={copied ? 'check' : 'copy'} size={15} />
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+          <button className="btn btn-outline" onClick={download}>
+            <Icon name="download" size={15} /> Download
+          </button>
+          <button className="btn btn-outline" onClick={print}>
+            <Icon name="print" size={15} /> Print
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Bite card — one dated batch of letters, collapsible ──────────────────────
+// ─── One generated letter row inside an analysis card ──────────────────────────
 
-interface BiteCardProps {
-  bite: Bite;
-  onStatusUpdate: (disputeId: string, status: DisputeStatus) => void;
+interface LetterRowProps {
+  item: NegativeItem;
+  onView: () => void;
+  isLast: boolean;
 }
 
-function BiteCard({ bite, onStatusUpdate }: BiteCardProps) {
+function LetterRow({ item, onView, isLast }: LetterRowProps) {
+  const bureau = bureauByKey(item.primaryBureau || item.bureaus[0] || 'experian');
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+      padding: '12px 4px', borderBottom: isLast ? 'none' : '1px solid var(--border-2)',
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--ink)' }}>{item.creditor}</div>
+        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{
+            fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
+            background: 'var(--blue-tintbg)', color: 'var(--blue-ink)',
+          }}>
+            {item.disputeCategory}
+          </span>
+          <span>{item.bureaus.map((b) => bureauByKey(b).abbr).join(', ')}</span>
+        </div>
+      </div>
+      <button
+        onClick={onView}
+        title="View generated letter"
+        style={{
+          width: 32, height: 32, borderRadius: 8, flex: 'none',
+          display: 'grid', placeItems: 'center',
+          background: 'var(--blue-tintbg)', border: `1px solid ${bureau.color}33`,
+          color: bureau.color, cursor: 'pointer',
+        }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+// ─── One AI call's card -- all letters generated by that analysis ─────────────
+
+interface AnalysisCardProps {
+  analysis: AnalysisRecord;
+  index: number;
+  total: number;
+  onView: (item: NegativeItem) => void;
+}
+
+function AnalysisCard({ analysis, index, total, onView }: AnalysisCardProps) {
   const [open, setOpen] = useState(false);
-  const disputes = bite.disputes ?? [];
-  const active = disputes.filter((d) => d.status === 'sent').length;
+  const items = analysis.result.negativeItems;
+  // Oldest analysis = call #1, regardless of display order (newest-first)
+  const callNumber = total - index;
 
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 14, background: '#fff', overflow: 'hidden' }}>
@@ -186,28 +192,33 @@ function BiteCard({ bite, onStatusUpdate }: BiteCardProps) {
           </svg>
           <div>
             <div style={{ fontWeight: 800, fontSize: 15.5, color: 'var(--ink)' }}>
-              {bite.letter_count} Letter{bite.letter_count !== 1 ? 's' : ''}
+              Analysis #{callNumber} — {items.length} Letter{items.length !== 1 ? 's' : ''} Generated
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>
-              {new Date(bite.sent_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              {new Date(analysis.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              {' · '}
+              {new Date(analysis.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </div>
           </div>
         </div>
-        {active > 0 && (
-          <span style={{
-            fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
-            background: '#f0fdf4', color: '#16a34a',
-          }}>
-            {active} Awaiting Response
-          </span>
-        )}
       </button>
 
       {open && (
-        <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {disputes.map((d) => (
-            <DisputeCard key={d.id} dispute={d} onStatusUpdate={onStatusUpdate} />
-          ))}
+        <div style={{ padding: '0 20px 18px' }}>
+          {items.length === 0 ? (
+            <div style={{ padding: '16px 4px', color: 'var(--ink-4)', fontSize: 13 }}>
+              No negative items were found in this analysis.
+            </div>
+          ) : (
+            items.map((item, idx) => (
+              <LetterRow
+                key={`${item.creditor}-${item.accountNumber}-${idx}`}
+                item={item}
+                onView={() => onView(item)}
+                isLast={idx === items.length - 1}
+              />
+            ))
+          )}
         </div>
       )}
     </div>
@@ -215,25 +226,36 @@ function BiteCard({ bite, onStatusUpdate }: BiteCardProps) {
 }
 
 export default function HistoryPage() {
-  const router = useRouter();
-  const [bites, setBites] = useState<Bite[]>([]);
+  const [analyses, setAnalyses] = useState<AnalysisRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState<{ bureau: Bureau; item: NegativeItem; body: string } | null>(null);
 
   useEffect(() => {
-    fetch('/api/bites')
+    fetch('/api/analyses')
       .then((r) => r.json())
-      .then((data: { success: boolean; data?: Bite[] }) => {
-        if (data.success && data.data) setBites(data.data);
+      .then((data: { success: boolean; data?: AnalysisRecord[] }) => {
+        if (data.success && data.data) setAnalyses(data.data);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const handleStatusUpdate = (disputeId: string, status: DisputeStatus) => {
-    setBites((prev) => prev.map((bite) => ({
-      ...bite,
-      disputes: bite.disputes?.map((d) => d.id === disputeId ? { ...d, status } : d),
-    })));
+  const totalLetters = useMemo(
+    () => analyses.reduce((sum, a) => sum + a.result.negativeItems.length, 0),
+    [analyses],
+  );
+
+  const openLetter = (analysis: AnalysisRecord, item: NegativeItem) => {
+    const bureau = bureauByKey(item.primaryBureau || item.bureaus[0] || 'experian');
+    const itemsForBureau = analysis.result.negativeItems.filter(
+      (n) => n.creditor === item.creditor &&
+        n.bureaus.map((b) => b.toLowerCase()).includes(bureau.key)
+    );
+    const body = buildCreditorLetter(
+      bureau, item.creditor, itemsForBureau.length > 0 ? itemsForBureau : [item],
+      analysis.user_info, analysis.result.completedAt,
+    );
+    setModal({ bureau, item, body });
   };
 
   return (
@@ -243,7 +265,8 @@ export default function HistoryPage() {
           History
         </h1>
         <p style={{ margin: '7px 0 0', color: 'var(--ink-3)', fontSize: 14.5 }}>
-          Every batch of dispute letters you've sent, grouped by date, with FCRA response deadlines.
+          Every dispute letter ever generated, grouped by the AI analysis call that created it
+          {totalLetters > 0 && ` — ${totalLetters} letter${totalLetters !== 1 ? 's' : ''} across ${analyses.length} analys${analyses.length !== 1 ? 'es' : 'is'}`}.
         </p>
       </div>
 
@@ -252,28 +275,41 @@ export default function HistoryPage() {
           <span className="spin" style={{ display: 'inline-block', marginBottom: 12 }} />
           <div>Loading history…</div>
         </div>
-      ) : bites.length === 0 ? (
+      ) : analyses.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, background: '#fff', border: '1px solid var(--border)', borderRadius: 16 }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>📬</div>
-          <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--ink)', marginBottom: 8 }}>No letters sent yet</div>
-          <p style={{ color: 'var(--ink-3)', fontSize: 14, maxWidth: 380, margin: '0 auto 24px' }}>
-            Open your dispute letters and click &ldquo;Mark as Sent&rdquo; to start tracking the 30-day FCRA deadline.
+          <div style={{ fontSize: 40, marginBottom: 16 }}>🗂️</div>
+          <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--ink)', marginBottom: 8 }}>No analyses yet</div>
+          <p style={{ color: 'var(--ink-3)', fontSize: 14, maxWidth: 380, margin: '0 auto' }}>
+            Every time you run a new analysis, the letters it generates will show up here as their own batch.
           </p>
-          <button className="btn btn-primary" style={{ fontSize: 14 }} onClick={() => router.push('/dispute-letters')}>
-            Go to Dispute Letters
-          </button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {bites.map((bite) => (
-            <BiteCard key={bite.id} bite={bite} onStatusUpdate={handleStatusUpdate} />
+          {analyses.map((analysis, idx) => (
+            <AnalysisCard
+              key={analysis.id}
+              analysis={analysis}
+              index={idx}
+              total={analyses.length}
+              onView={(item) => openLetter(analysis, item)}
+            />
           ))}
         </div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, color: 'var(--muted)', fontSize: 12.8 }}>
-        <Icon name="lock" size={14} /> Dispute records are stored securely and tied to your account only.
+        <Icon name="lock" size={14} /> Every generated letter is saved here, whether or not you've sent it.
       </div>
+
+      {modal && (
+        <LetterViewModal
+          bureau={modal.bureau}
+          creditor={modal.item.creditor}
+          disputeCategory={modal.item.disputeCategory}
+          body={modal.body}
+          onClose={() => setModal(null)}
+        />
+      )}
     </div>
   );
 }

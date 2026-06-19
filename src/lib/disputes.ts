@@ -86,13 +86,19 @@ export async function incrementBiteLetterCount(biteId: string): Promise<void> {
   if (updateError) throw new Error(`Failed to increment bite letter count: ${updateError.message}`);
 }
 
-/** All of a user's Bites, newest first, each with its nested disputes for the History page. */
+/**
+ * All of a user's Bites, newest first, each with its nested disputes for the
+ * Letter Tracking page. Excludes Bites with zero letters -- these are
+ * abandoned attempts (e.g. the user started "Mark as Sent" but the request
+ * failed before a letter actually attached) and have nothing useful to show.
+ */
 export async function getBitesByUser(userId: string): Promise<Bite[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('bites')
     .select('*, disputes(*)')
     .eq('user_id', userId)
+    .gt('letter_count', 0)
     .order('sent_at', { ascending: false });
 
   if (error) throw new Error(`Failed to fetch bites: ${error.message}`);

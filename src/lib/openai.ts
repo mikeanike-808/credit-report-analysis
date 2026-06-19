@@ -641,25 +641,36 @@ export async function analyzeReport(
   );
 
   // Call 1 — extract structured inventory
+  const t0 = Date.now();
   const extraction = await extractReportData(client, preprocessed.text, fullName, fullAddress);
+  const tExtract = Date.now();
+  console.info(`[analyzeReport] Call 1 (extraction) took ${tExtract - t0}ms`);
   const inventory = formatInventory(extraction);
 
   // Derive expected floor from inventory math — if Call 2 returns fewer, retry once
   const minimumExpected = computeMinimumExpectedItems(extraction);
 
-  // Call 2 — classify and generate dispute analysis from the fixed inventory
-  const firstResult = await runAnalysisCall(client, inventory, fullName, fullAddress, 42);
-
-  if (firstResult.negativeItems.length >= minimumExpected) {
-    return firstResult;
-  }
-
-  // Item count is below the mechanical minimum — retry with a different seed.
-  // The AI collapsed items despite explicit rules; a second attempt often corrects this.
-  console.warn(
-    `[analyzeReport] Got ${firstResult.negativeItems.length} items but inventory implies ≥${minimumExpected}. Retrying.`,
+  // Call 2 — run both seeds concurrently rather than retrying sequentially
+  // only when the first falls short. The AI's seed+temperature:0 determinism
+  // is best-effort, not guaranteed, so a single attempt can undershoot the
+  // mechanical floor; racing both from the start trades ~2x Call 2 API cost
+  // for cutting that tail latency roughly in half (no longer pay for a full
+  // second sequential call only after discovering the first was short).
+  const [firstResult, retryResult] = await Promise.all([
+    runAnalysisCall(client, inventory, fullName, fullAddress, 42),
+    runAnalysisCall(client, inventory, fullName, fullAddress, 99),
+  ]);
+  const tCall2 = Date.now();
+  console.info(
+    `[analyzeReport] Call 2 (raced, ${firstResult.negativeItems.length} vs ${retryResult.negativeItems.length} items) took ${tCall2 - tExtract}ms`,
   );
-  const retryResult = await runAnalysisCall(client, inventory, fullName, fullAddress, 99);
+
+  if (firstResult.negativeItems.length < minimumExpected && retryResult.negativeItems.length < minimumExpected) {
+    console.warn(
+      `[analyzeReport] Both attempts (${firstResult.negativeItems.length}, ${retryResult.negativeItems.length}) are below the inventory floor of ${minimumExpected}.`,
+    );
+  }
+  console.info(`[analyzeReport] total: ${tCall2 - t0}ms`);
 
   // Return whichever attempt yielded more items
   return retryResult.negativeItems.length >= firstResult.negativeItems.length

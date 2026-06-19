@@ -31,3 +31,16 @@ export async function getLatestAnalysis(userId: string): Promise<AnalysisRecord 
   if (error) throw new Error(`Failed to fetch latest analysis: ${error.message}`);
   return (data as AnalysisRecord | null) ?? null;
 }
+
+/** Every saved analysis for this user, newest first -- one per AI call, for the History page. */
+export async function getAnalysesByUser(userId: string): Promise<AnalysisRecord[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('analyses')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(`Failed to fetch analyses: ${error.message}`);
+  return (data ?? []) as AnalysisRecord[];
+}

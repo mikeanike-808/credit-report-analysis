@@ -192,8 +192,8 @@ function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, o
                   </div>
                 </div>
               </div>
-              <button className="btn btn-outline" style={{ fontSize: 12.5 }} onClick={() => router.push('/history')}>
-                View History →
+              <button className="btn btn-outline" style={{ fontSize: 12.5 }} onClick={() => router.push('/letter-tracking')}>
+                View Tracker →
               </button>
             </div>
           ) : (
