@@ -42,7 +42,7 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {(() => {
           const active = pathname === NEW_ANALYSIS_ITEM.href || pathname.startsWith(NEW_ANALYSIS_ITEM.href + '/');
           return (
