@@ -44,3 +44,19 @@ export async function getAnalysesByUser(userId: string): Promise<AnalysisRecord[
   if (error) throw new Error(`Failed to fetch analyses: ${error.message}`);
   return (data ?? []) as AnalysisRecord[];
 }
+
+/**
+ * Deletes one analysis -- scoped to userId so a user can only ever delete
+ * their own rows, even though this client uses the service role key and
+ * would otherwise bypass that check entirely.
+ */
+export async function deleteAnalysis(id: string, userId: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('analyses')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', userId);
+
+  if (error) throw new Error(`Failed to delete analysis: ${error.message}`);
+}

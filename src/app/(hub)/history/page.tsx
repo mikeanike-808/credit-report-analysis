@@ -164,25 +164,43 @@ interface AnalysisCardProps {
   index: number;
   total: number;
   onView: (item: NegativeItem) => void;
+  onDelete: (id: string) => void;
 }
 
-function AnalysisCard({ analysis, index, total, onView }: AnalysisCardProps) {
+function AnalysisCard({ analysis, index, total, onView, onDelete }: AnalysisCardProps) {
   const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const items = analysis.result.negativeItems;
   // Oldest analysis = call #1, regardless of display order (newest-first)
   const callNumber = total - index;
 
+  const confirmDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/analyses/${analysis.id}`, { method: 'DELETE' });
+      const data = await res.json() as { success: boolean };
+      if (data.success) onDelete(analysis.id);
+    } finally {
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 14, background: '#fff', overflow: 'hidden' }}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          width: '100%', textAlign: 'left', border: 'none', background: 'transparent',
-          padding: '18px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '6px 8px 6px 20px',
+      }}>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            flex: 1, textAlign: 'left', border: 'none', background: 'transparent',
+            padding: '12px 0', cursor: 'pointer', display: 'flex', alignItems: 'center',
+            gap: 14, minWidth: 0,
+          }}
+        >
           <svg
             width="18" height="18" viewBox="0 0 24 24" fill="none"
             stroke="var(--ink-3)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -190,7 +208,7 @@ function AnalysisCard({ analysis, index, total, onView }: AnalysisCardProps) {
           >
             <polyline points="6 9 12 15 18 9" />
           </svg>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 15.5, color: 'var(--ink)' }}>
               Analysis #{callNumber} — {items.length} Letter{items.length !== 1 ? 's' : ''} Generated
             </div>
@@ -200,8 +218,39 @@ function AnalysisCard({ analysis, index, total, onView }: AnalysisCardProps) {
               {new Date(analysis.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
             </div>
           </div>
-        </div>
-      </button>
+        </button>
+
+        {confirming ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 'none' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>Delete this analysis?</span>
+            <button
+              className="btn btn-outline"
+              style={{ fontSize: 12, padding: '5px 10px', color: 'var(--red)', borderColor: 'var(--red)' }}
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting ? <span className="spin" /> : 'Delete'}
+            </button>
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize: 12, padding: '5px 10px' }}
+              onClick={() => setConfirming(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            className="btn btn-ghost"
+            title="Delete this analysis"
+            style={{ flex: 'none', padding: 8, borderRadius: 8, color: 'var(--ink-3)' }}
+            onClick={() => setConfirming(true)}
+          >
+            <Icon name="trash" size={15} />
+          </button>
+        )}
+      </div>
 
       {open && (
         <div style={{ padding: '0 20px 18px' }}>
@@ -258,6 +307,10 @@ export default function HistoryPage() {
     setModal({ bureau, item, body });
   };
 
+  const handleDelete = (id: string) => {
+    setAnalyses((prev) => prev.filter((a) => a.id !== id));
+  };
+
   return (
     <div style={{ padding: 'clamp(22px,3vw,36px) clamp(18px,3vw,38px) 44px' }}>
       <div style={{ marginBottom: 30 }}>
@@ -292,6 +345,7 @@ export default function HistoryPage() {
               index={idx}
               total={analyses.length}
               onView={(item) => openLetter(analysis, item)}
+              onDelete={handleDelete}
             />
           ))}
         </div>

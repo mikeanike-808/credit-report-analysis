@@ -13,6 +13,11 @@ const NAV_ITEMS = [
   { href: '/history', label: 'History', icon: 'layers' },
 ] as const;
 
+// Same destination as /upload's form -- enter your info and upload a report,
+// exactly like the original analysis flow. Kept separate from NAV_ITEMS so it
+// can be styled as a distinct action rather than just another page link.
+const NEW_ANALYSIS_ITEM = { href: '/upload', label: 'New Analysis', icon: 'uploadCloud' } as const;
+
 export function Sidebar() {
   const pathname = usePathname();
 
@@ -38,6 +43,29 @@ export function Sidebar() {
       </div>
 
       <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {(() => {
+          const active = pathname === NEW_ANALYSIS_ITEM.href || pathname.startsWith(NEW_ANALYSIS_ITEM.href + '/');
+          return (
+            <Link
+              href={NEW_ANALYSIS_ITEM.href}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 11,
+                padding: '10px 12px', borderRadius: 10, marginBottom: 10,
+                fontSize: 14, fontWeight: 700, textDecoration: 'none',
+                color: active ? '#fff' : 'var(--blue-strong)',
+                background: active ? 'var(--blue-strong)' : 'var(--blue-tintbg)',
+                border: '1px solid ' + (active ? 'var(--blue-strong)' : '#bbf7d0'),
+                transition: 'background .14s, color .14s',
+              }}
+            >
+              <Icon name={NEW_ANALYSIS_ITEM.icon} size={17} />
+              {NEW_ANALYSIS_ITEM.label}
+            </Link>
+          );
+        })()}
+
+        <div style={{ height: 1, background: 'var(--border-2)', margin: '4px 0 10px' }} />
+
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
@@ -62,15 +90,6 @@ export function Sidebar() {
 
       <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-2)', display: 'flex', alignItems: 'center', gap: 10 }}>
         <UserButton />
-        <Link
-          href="/upload"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            fontSize: 12.5, fontWeight: 700, color: 'var(--ink-3)', textDecoration: 'none',
-          }}
-        >
-          <Icon name="refresh" size={13} /> New Analysis
-        </Link>
       </div>
     </aside>
   );
