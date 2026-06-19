@@ -26,7 +26,7 @@ export function useEnsureAnalysis(): { ready: boolean } {
       .then((data: { success: boolean; data?: AnalysisRecord | null }) => {
         if (cancelled) return;
         if (data.success && data.data) {
-          setResult(data.data.result, data.data.user_info);
+          setResult(data.data.result, data.data.user_info, data.data.id, data.data.completed_actions ?? []);
           setChecked(true);
         } else {
           router.replace('/upload');

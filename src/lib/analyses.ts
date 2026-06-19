@@ -46,6 +46,22 @@ export async function getAnalysesByUser(userId: string): Promise<AnalysisRecord[
 }
 
 /**
+ * Overwrites the full set of completed action-plan indices for one analysis --
+ * scoped to userId so a user can only ever update their own rows, even though
+ * this client uses the service role key and would otherwise bypass that check.
+ */
+export async function updateCompletedActions(id: string, userId: string, completedActions: number[]): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('analyses')
+    .update({ completed_actions: completedActions })
+    .eq('id', id)
+    .eq('user_id', userId);
+
+  if (error) throw new Error(`Failed to update completed actions: ${error.message}`);
+}
+
+/**
  * Deletes one analysis -- scoped to userId so a user can only ever delete
  * their own rows, even though this client uses the service role key and
  * would otherwise bypass that check entirely.

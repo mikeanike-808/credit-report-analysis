@@ -117,6 +117,8 @@ export interface AnalysisRecord {
   user_info: UserInfo;
   result: AnalysisResult;
   created_at: string;
+  /** Indices into result.actionPlan that the user has checked off on Action Tracker */
+  completed_actions: number[];
 }
 
 export interface AnalysisResult {

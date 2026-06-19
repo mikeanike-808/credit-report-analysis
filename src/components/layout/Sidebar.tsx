@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/Icon';
 const NAV_ITEMS = [
   { href: '/home', label: 'Home', icon: 'home' },
   { href: '/dispute-letters', label: 'Dispute Letters', icon: 'fileText' },
+  { href: '/action-tracker', label: 'Action Tracker', icon: 'checkSquare' },
   { href: '/letter-tracking', label: 'Letter Tracking', icon: 'clock' },
   { href: '/history', label: 'History', icon: 'layers' },
 ] as const;

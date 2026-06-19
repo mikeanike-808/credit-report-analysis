@@ -62,7 +62,7 @@ export default function UploadPage() {
         return;
       }
 
-      setResult(data.result, form);
+      setResult(data.result, form, data.analysisId ?? null, []);
       router.push('/home');
     } catch {
       setError('Something went wrong. Please try again.');

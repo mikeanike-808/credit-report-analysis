@@ -374,7 +374,7 @@ export default function HistoryPage() {
   // the user to Home to view it -- same context the live analyze flow uses,
   // so Home renders it exactly as it did right after that original AI call.
   const openReport = (analysis: AnalysisRecord) => {
-    setResult(analysis.result, analysis.user_info);
+    setResult(analysis.result, analysis.user_info, analysis.id, analysis.completed_actions ?? []);
     router.push('/home');
   };
 

@@ -64,10 +64,10 @@ export async function POST(req: NextRequest) {
     };
 
     const tSaveStart = Date.now();
-    await saveAnalysis(userId, userInfo, result);
+    const saved = await saveAnalysis(userId, userInfo, result);
     console.info(`[api/analyze] saveAnalysis took ${Date.now() - tSaveStart}ms`);
 
-    return NextResponse.json({ success: true, result });
+    return NextResponse.json({ success: true, result, analysisId: saved.id });
 
   } catch (err) {
     if (err instanceof OpenAI.APIError) {
