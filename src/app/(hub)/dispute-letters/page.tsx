@@ -8,6 +8,7 @@ import { BUREAUS } from '@/lib/bureaus';
 import { buildCreditorLetter } from '@/lib/letters';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { useEnsureAnalysis } from '@/lib/useEnsureAnalysis';
+import { PageSkeleton } from '@/components/ui/PageSkeleton';
 import type { NegativeItem, Bureau } from '@/types';
 
 // ─── Strength badge ───────────────────────────────────────────────────────────
@@ -467,7 +468,7 @@ export default function DisputeLettersPage() {
     setModal({ bureau, item, body });
   };
 
-  if (!ready || !result || !userInfo) return null;
+  if (!ready || !result || !userInfo) return <PageSkeleton />;
 
   return (
     <div style={{ padding: 'clamp(22px,3vw,36px) clamp(18px,3vw,38px) 48px' }}>

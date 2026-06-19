@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/Icon';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { useEnsureAnalysis } from '@/lib/useEnsureAnalysis';
+import { PageSkeleton } from '@/components/ui/PageSkeleton';
 import { CreditOverview } from '@/components/dashboard/CreditOverview';
 import { StrengthsWeaknesses } from '@/components/dashboard/StrengthsWeaknesses';
 import { NegativeItems } from '@/components/dashboard/NegativeItems';
@@ -15,7 +16,7 @@ export default function HomePage() {
   const { result } = useAnalysis();
   const { ready } = useEnsureAnalysis();
 
-  if (!ready || !result) return null;
+  if (!ready || !result) return <PageSkeleton />;
 
   const completed = new Date(result.completedAt);
   const completedDate = completed.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
