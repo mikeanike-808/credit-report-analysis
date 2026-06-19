@@ -362,14 +362,16 @@ dateReported: Use the most recent lastActivity date from the account's bureauDat
 
 dofd: Use the dofd from the inventory account. Hard inquiries and personal info items → null.
 
-reasons: Be specific — cite actual values from the inventory. For late payments include the actual counts (e.g., "Experian reports 3 late payments at 30 days, Equifax reports 2"). For collections include the status and bureau. Never write generic phrases like "Multiple late payments reported across all bureaus."
+reasons: Exactly ONE string, max 20 words. Be specific — cite actual values from the inventory (e.g., "Experian reports 3 late payments at 30 days, Equifax reports 2"). Never write generic phrases like "Multiple late payments reported across all bureaus."
+
+recommendedAction: One short imperative sentence, max 12 words (e.g., "Dispute the 30-day late payment with Experian and Equifax.").
 
 disputeStrength:
   "Strong" — Obsolete, re-aged, status/balance contradiction, duplicate, unauthorized inquiry, cross-bureau inconsistency, personal info with different surname
   "Moderate" — Unverifiable debt, unvalidated collection, late payment with supporting counts
   "Weak" — Generic inaccuracy without specific supporting data
 
-specificViolation: One concrete sentence citing actual values from the inventory (dates, counts, balances, bureau names).
+specificViolation: One concrete sentence, max 25 words, citing actual values from the inventory (dates, counts, balances, bureau names).
 
 ===== OTHER FIELDS =====
 
