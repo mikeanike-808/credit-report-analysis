@@ -28,8 +28,11 @@ export function Sidebar() {
         flex: 'none',
         display: 'flex',
         flexDirection: 'column',
-        background: '#fff',
-        borderRight: '1px solid var(--border-2)',
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--r-shell)',
+        boxShadow: 'var(--sh-shell)',
+        overflow: 'hidden',
       }}
     >
       <div style={{ padding: '22px 20px', borderBottom: '1px solid var(--border-2)' }}>
