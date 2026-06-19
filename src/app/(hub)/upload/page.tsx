@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/Icon';
 import { PersonalInfoForm } from '@/components/upload/PersonalInfoForm';
 import { UploadArea } from '@/components/upload/UploadArea';
+import { AnalyzingProgress } from '@/components/upload/AnalyzingProgress';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { extractTextFromPDF } from '@/lib/pdf';
 import type { UserInfo } from '@/types';
@@ -166,6 +167,8 @@ export default function UploadPage() {
           ? <><span className="spin" /> Analyzing your report&hellip;</>
           : <><Icon name="sparkle" size={19} fill="currentColor" stroke={0} /> Analyze My Report</>}
       </button>
+
+      {loading && <AnalyzingProgress />}
 
       {touched && !isValid && !loading && (
         <div style={{ textAlign: 'center', color: 'var(--red)', fontSize: 13, marginTop: 10, fontWeight: 600 }}>
