@@ -56,6 +56,7 @@ function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, o
   const [phase, setPhase] = useState<MarkPhase>('idle');
   const [sentDate, setSentDate] = useState(new Date().toISOString().slice(0, 10));
   const [expectedBy, setExpectedBy] = useState('');
+  const [markSentError, setMarkSentError] = useState('');
 
   const copy = () => {
     navigator.clipboard?.writeText(body).catch(() => {});
@@ -85,6 +86,7 @@ function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, o
 
   const submitMarkSent = async () => {
     setPhase('loading');
+    setMarkSentError('');
     try {
       const biteId = await ensureBiteId();
       const res = await fetch('/api/disputes/mark-sent', {
@@ -95,15 +97,17 @@ function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, o
           sentAt: new Date(sentDate).toISOString(), biteId,
         }),
       });
-      const data = await res.json() as { success: boolean; data?: { expectedResponseBy: string } };
+      const data = await res.json() as { success: boolean; data?: { expectedResponseBy: string }; error?: string };
       if (data.success && data.data) {
         setExpectedBy(data.data.expectedResponseBy);
         setPhase('done');
       } else {
-        setPhase('idle');
+        setMarkSentError(data.error ?? 'Could not save this dispute. Please try again.');
+        setPhase('picking');
       }
     } catch {
-      setPhase('idle');
+      setMarkSentError('Could not reach the server. Please check your connection and try again.');
+      setPhase('picking');
     }
   };
 
@@ -198,25 +202,32 @@ function LetterModal({ bureau, creditor, accountNumber, disputeCategory, body, o
                 Track this dispute
               </div>
               {phase === 'picking' || phase === 'loading' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <label style={{ fontSize: 13, color: 'var(--ink-2)', fontWeight: 600 }}>
-                    Date sent:
-                    <input
-                      type="date"
-                      value={sentDate}
-                      onChange={(e) => setSentDate(e.target.value)}
-                      max={new Date().toISOString().slice(0, 10)}
-                      style={{
-                        marginLeft: 8, padding: '6px 10px', borderRadius: 8,
-                        border: '1px solid var(--border)', fontSize: 13,
-                        color: 'var(--ink)', background: 'var(--surface)',
-                      }}
-                    />
-                  </label>
-                  <button className="btn btn-primary" style={{ fontSize: 13 }} onClick={submitMarkSent} disabled={phase === 'loading'}>
-                    {phase === 'loading' ? <><span className="spin" /> Saving…</> : 'Confirm'}
-                  </button>
-                  <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => setPhase('idle')}>Cancel</button>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <label style={{ fontSize: 13, color: 'var(--ink-2)', fontWeight: 600 }}>
+                      Date sent:
+                      <input
+                        type="date"
+                        value={sentDate}
+                        onChange={(e) => setSentDate(e.target.value)}
+                        max={new Date().toISOString().slice(0, 10)}
+                        style={{
+                          marginLeft: 8, padding: '6px 10px', borderRadius: 8,
+                          border: '1px solid var(--border)', fontSize: 13,
+                          color: 'var(--ink)', background: 'var(--surface)',
+                        }}
+                      />
+                    </label>
+                    <button className="btn btn-primary" style={{ fontSize: 13 }} onClick={submitMarkSent} disabled={phase === 'loading'}>
+                      {phase === 'loading' ? <><span className="spin" /> Saving…</> : 'Confirm'}
+                    </button>
+                    <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => { setPhase('idle'); setMarkSentError(''); }}>Cancel</button>
+                  </div>
+                  {markSentError && (
+                    <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 600, color: 'var(--red)' }}>
+                      {markSentError}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <button className="btn btn-outline" style={{ fontSize: 13 }} onClick={() => setPhase('picking')}>
