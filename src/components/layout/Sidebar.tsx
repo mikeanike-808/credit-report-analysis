@@ -20,12 +20,10 @@ const CREDIT_PLAN_NAV = [
 
 const NEW_ANALYSIS_ITEM = { href: '/upload', label: 'New Analysis', icon: 'uploadCloud' } as const;
 
-// href is undefined for goals whose pages don't exist yet (Grow & Rebuild
-// ships in a later phase) -- the row still renders, just isn't a link.
 const JOURNEY_GOALS = [
   { label: 'Credit Plan', icon: 'gauge', href: '/home' },
   { label: 'Payoff Plan', icon: 'dollarSign', href: '/payoff' },
-  { label: 'Grow & Rebuild', icon: 'trending', href: undefined },
+  { label: 'Grow & Rebuild', icon: 'trending', href: '/grow' },
 ] as const;
 
 interface JourneyApiResponse {

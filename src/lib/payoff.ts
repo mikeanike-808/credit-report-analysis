@@ -32,6 +32,14 @@ export function money(n: number): string {
   return '$' + Math.round(n).toLocaleString();
 }
 
+/** Future value of investing `monthly` per month at `annualRate` (e.g. 0.07) for `years` years -- used by Grow & Rebuild's compound-growth projection. */
+export function futureValue(monthly: number, annualRate: number, years: number): number {
+  const r = annualRate / 12;
+  const n = years * 12;
+  if (r === 0) return monthly * n;
+  return monthly * ((Math.pow(1 + r, n) - 1) / r);
+}
+
 interface DebtLike {
   balance: number;
   apr: number;

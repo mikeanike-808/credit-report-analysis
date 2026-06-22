@@ -168,6 +168,13 @@ export interface PayoffPledge {
   updated_at: string;
 }
 
+/** One row per user -- checked-off steps in Grow & Rebuild's Maintain/Grow Credit tabs (Grow Your Money is informational only). */
+export interface GrowProgress {
+  user_id: string;
+  completed: { maintain: number[]; grow: number[] };
+  updated_at: string;
+}
+
 /** A dated batch of dispute letters sent together in one visit to Dispute Letters -- shown on History */
 export interface Bite {
   id: string;
