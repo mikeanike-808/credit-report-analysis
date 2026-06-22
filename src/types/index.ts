@@ -99,6 +99,18 @@ export interface DisputeRecord {
   bite_id: string | null;
 }
 
+/**
+ * The sidebar's sequential journey. current_goal_index is the count of
+ * consecutively completed goals from index 0 -- a goal can only be marked
+ * done if every goal before it is already done, so this can never represent
+ * an invalid state like "goal 2 done but goal 1 isn't."
+ */
+export interface JourneyProgress {
+  user_id: string;
+  current_goal_index: number;
+  updated_at: string;
+}
+
 /** A dated batch of dispute letters sent together in one visit to Dispute Letters -- shown on History */
 export interface Bite {
   id: string;
