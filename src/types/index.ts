@@ -175,6 +175,37 @@ export interface GrowProgress {
   updated_at: string;
 }
 
+export interface ProfileAddress {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+/** One row per user -- only fields Clerk doesn't already have (name/email come from Clerk's currentUser()). */
+export interface Profile {
+  user_id: string;
+  dob: string | null;
+  phone: string | null;
+  address: ProfileAddress;
+  onboarding_completed_at: string | null;
+  updated_at: string;
+}
+
+export type IdentityDocType = 'drivers_license' | 'ssn_proof' | 'address_proof';
+export type IdentityDocStatus = 'pending' | 'verified' | 'rejected';
+
+export interface IdentityDocument {
+  id: string;
+  user_id: string;
+  doc_type: IdentityDocType;
+  storage_path: string;
+  status: IdentityDocStatus;
+  rejection_reason: string | null;
+  uploaded_at: string;
+  verified_at: string | null;
+}
+
 /** A dated batch of dispute letters sent together in one visit to Dispute Letters -- shown on History */
 export interface Bite {
   id: string;

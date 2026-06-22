@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/Icon';
 import { BUREAUS } from '@/lib/bureaus';
 import { useAnalysis } from '@/context/AnalysisContext';
@@ -124,6 +125,7 @@ function HeaderScores() {
 
 export function TopBar() {
   usePassiveAnalysisHydration();
+  const router = useRouter();
 
   return (
     <header style={{
@@ -142,6 +144,17 @@ export function TopBar() {
         }}
       >
         <Icon name="bell" size={17} />
+      </button>
+      <button
+        title="Account & documents"
+        onClick={() => router.push('/account')}
+        style={{
+          width: 38, height: 38, borderRadius: 11, border: '1px solid var(--border)',
+          background: 'var(--card)', color: 'var(--ink-2)', display: 'grid', placeItems: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        <Icon name="user" size={17} />
       </button>
     </header>
   );
