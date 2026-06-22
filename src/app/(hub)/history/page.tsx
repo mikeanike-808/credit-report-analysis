@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/Icon';
 import { BUREAUS } from '@/lib/bureaus';
 import { buildCreditorLetter } from '@/lib/letters';
 import { useAnalysis } from '@/context/AnalysisContext';
+import { itemKey } from '@/lib/roundCycle';
 import type { AnalysisRecord, Bureau, NegativeItem } from '@/types';
 
 function bureauByKey(key: string): Bureau {
@@ -434,7 +435,82 @@ function ReportCard({ analysis, callNumber, onOpen, onDelete }: ReportCardProps)
   );
 }
 
-type HistoryTab = 'letters' | 'reports';
+// ─── Case History -- per-item status merged across every analysis ever run ───
+
+interface CaseHistoryRow {
+  item: NegativeItem;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  status: 'deleted' | 'inDispute';
+}
+
+// Walks every analysis oldest-to-newest, tracking each disputable item's
+// first/last appearance by its identity key. An item missing from the most
+// recent analysis is presumed deleted/resolved -- there's no separate
+// "deleted" flag anywhere, so disappearance from the latest report is the
+// only signal this app actually has.
+function buildCaseHistory(analyses: AnalysisRecord[]): CaseHistoryRow[] {
+  if (analyses.length === 0) return [];
+  const latestKeys = new Set(analyses[0]!.result.negativeItems.map(itemKey));
+  const seen = new Map<string, CaseHistoryRow>();
+
+  for (const a of [...analyses].reverse()) {
+    for (const item of a.result.negativeItems) {
+      const key = itemKey(item);
+      const existing = seen.get(key);
+      if (existing) {
+        existing.lastSeenAt = a.created_at;
+        existing.item = item;
+      } else {
+        seen.set(key, { item, firstSeenAt: a.created_at, lastSeenAt: a.created_at, status: 'inDispute' });
+      }
+    }
+  }
+
+  for (const row of seen.values()) {
+    row.status = latestKeys.has(itemKey(row.item)) ? 'inDispute' : 'deleted';
+  }
+
+  // Deleted items first -- that's the news worth seeing.
+  return Array.from(seen.values()).sort((a, b) => (a.status === b.status ? 0 : a.status === 'deleted' ? -1 : 1));
+}
+
+function CaseRow({ row, isLast }: { row: CaseHistoryRow; isLast: boolean }) {
+  const deleted = row.status === 'deleted';
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 13, padding: '14px 16px',
+      borderBottom: isLast ? 'none' : '1px solid var(--border-2)',
+    }}>
+      <span style={{
+        flex: 'none', width: 30, height: 30, borderRadius: '50%',
+        background: deleted ? '#dcfce7' : '#fef3c7', color: deleted ? 'var(--green)' : 'var(--amber)',
+        display: 'grid', placeItems: 'center',
+      }}>
+        <Icon name={deleted ? 'checkCircle' : 'clock'} size={15} />
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontWeight: 700, fontSize: 14, color: 'var(--ink)',
+          textDecoration: deleted ? 'line-through' : 'none',
+        }}>
+          {row.item.creditor}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>
+          {row.item.disputeCategory} · first disputed {new Date(row.firstSeenAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </div>
+      </div>
+      <span style={{
+        flex: 'none', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.03em',
+        color: deleted ? 'var(--green)' : 'var(--amber)',
+      }}>
+        {deleted ? 'Deleted' : 'In dispute'}
+      </span>
+    </div>
+  );
+}
+
+type HistoryTab = 'letters' | 'reports' | 'case';
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -458,6 +534,9 @@ export default function HistoryPage() {
     () => analyses.reduce((sum, a) => sum + a.result.negativeItems.length, 0),
     [analyses],
   );
+
+  const caseHistory = useMemo(() => buildCaseHistory(analyses), [analyses]);
+  const deletedCount = useMemo(() => caseHistory.filter((r) => r.status === 'deleted').length, [caseHistory]);
 
   const openLetter = (analysis: AnalysisRecord, item: NegativeItem) => {
     const bureau = bureauByKey(item.primaryBureau || item.bureaus[0] || 'experian');
@@ -512,6 +591,7 @@ export default function HistoryPage() {
         {([
           { key: 'letters', label: 'Dispute Letters' },
           { key: 'reports', label: 'Past Reports' },
+          { key: 'case', label: 'Case History' },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -556,7 +636,7 @@ export default function HistoryPage() {
             />
           ))}
         </div>
-      ) : (
+      ) : tab === 'reports' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {analyses.map((analysis, idx) => (
             <ReportCard
@@ -567,6 +647,25 @@ export default function HistoryPage() {
               onDelete={() => handleDelete(analysis.id)}
             />
           ))}
+        </div>
+      ) : (
+        <div>
+          {caseHistory.length > 0 && (
+            <p style={{ margin: '0 0 14px', fontSize: 13.5, color: 'var(--ink-3)' }}>
+              {deletedCount} of {caseHistory.length} disputable item{caseHistory.length !== 1 ? 's' : ''} deleted across every analysis you&rsquo;ve run.
+            </p>
+          )}
+          <div style={{ border: '1px solid var(--border)', borderRadius: 14, background: '#fff', overflow: 'hidden' }}>
+            {caseHistory.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--ink-4)', fontSize: 13 }}>
+                No disputable items found yet.
+              </div>
+            ) : (
+              caseHistory.map((row, idx) => (
+                <CaseRow key={itemKey(row.item)} row={row} isLast={idx === caseHistory.length - 1} />
+              ))
+            )}
+          </div>
         </div>
       )}
 

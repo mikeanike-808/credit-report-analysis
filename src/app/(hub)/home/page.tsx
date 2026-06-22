@@ -10,11 +10,13 @@ import { StrengthsWeaknesses } from '@/components/dashboard/StrengthsWeaknesses'
 import { NegativeItems } from '@/components/dashboard/NegativeItems';
 import { ActionPlan } from '@/components/dashboard/ActionPlan';
 import { SummaryCard } from '@/components/dashboard/SummaryCard';
+import { useRoundResults, RoundResultsModal } from '@/components/layout/RoundResultsModal';
 
 export default function HomePage() {
   const router = useRouter();
   const { result } = useAnalysis();
   const { ready } = useEnsureAnalysis();
+  const { diff, dismiss } = useRoundResults();
 
   if (!ready || !result) return <PageSkeleton />;
 
@@ -114,6 +116,8 @@ export default function HomePage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 28, color: 'var(--muted)', fontSize: 12.8 }}>
         <Icon name="lock" size={14} /> Your saved data is tied to your account only and never shared.
       </div>
+
+      {diff && <RoundResultsModal diff={diff} onClose={dismiss} />}
     </div>
   );
 }
