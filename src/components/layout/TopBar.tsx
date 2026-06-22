@@ -8,6 +8,7 @@ import { useAnalysis } from '@/context/AnalysisContext';
 import { daysUntilNextRound } from '@/lib/roundCycle';
 import { ScoreHistoryModal } from '@/components/layout/ScoreHistoryModal';
 import { RoundReadyModal } from '@/components/layout/RoundReadyModal';
+import { NotificationsBell } from '@/components/layout/NotificationsBell';
 import type { AnalysisRecord, Bite } from '@/types';
 
 // Passively hydrates AnalysisContext if it's empty (e.g. landing directly on
@@ -55,6 +56,15 @@ function NextMailingCountdown() {
   if (days === null) return null;
 
   const ready = days === 0;
+
+  // Fire-once-per-mount, server-deduped check that creates the 'round_ready'
+  // notification if it doesn't already exist for this cycle -- see
+  // createRoundReadyNotificationIfNeeded() for why repeat calls are harmless.
+  useEffect(() => {
+    if (!ready) return;
+    fetch('/api/notifications/round-ready-check', { method: 'POST' }).catch(() => {});
+  }, [ready]);
+
   const dateStr = (() => {
     const d = lastSentAt ? new Date(lastSentAt) : new Date();
     d.setDate(d.getDate() + 45);
@@ -134,17 +144,7 @@ export function TopBar() {
     }}>
       <NextMailingCountdown />
       <HeaderScores />
-      <button
-        title="Notifications (coming soon)"
-        disabled
-        style={{
-          width: 38, height: 38, borderRadius: 11, border: '1px solid var(--border)',
-          background: 'var(--card)', color: 'var(--ink-3)', display: 'grid', placeItems: 'center',
-          cursor: 'default', opacity: 0.6,
-        }}
-      >
-        <Icon name="bell" size={17} />
-      </button>
+      <NotificationsBell />
       <button
         title="Account & documents"
         onClick={() => router.push('/account')}

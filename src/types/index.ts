@@ -206,6 +206,19 @@ export interface IdentityDocument {
   verified_at: string | null;
 }
 
+export type NotificationType = 'letter_mailed' | 'items_deleted' | 'new_report' | 'round_ready';
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  link: string | null;
+  read: boolean;
+  created_at: string;
+}
+
 /** A dated batch of dispute letters sent together in one visit to Dispute Letters -- shown on History */
 export interface Bite {
   id: string;

@@ -3,8 +3,10 @@ import { ZodError } from 'zod';
 import OpenAI from 'openai';
 import { auth } from '@clerk/nextjs/server';
 import { analyzeReport } from '@/lib/openai';
-import { saveAnalysis } from '@/lib/analyses';
+import { saveAnalysis, getLatestAnalysis } from '@/lib/analyses';
 import { RequestBodySchema } from '@/lib/schemas';
+import { diffNegativeItems } from '@/lib/roundCycle';
+import { createNotification } from '@/lib/notifications';
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,9 +65,40 @@ export async function POST(req: NextRequest) {
       },
     };
 
+    // Compare against whatever was the latest analysis *before* this one, so
+    // we can notify about items that disappeared (presumed deleted/resolved)
+    // since the last pull. Read before saving, since saveAnalysis() below
+    // immediately becomes the new "latest."
+    const previous = await getLatestAnalysis(userId);
+
     const tSaveStart = Date.now();
     const saved = await saveAnalysis(userId, userInfo, result);
     console.info(`[api/analyze] saveAnalysis took ${Date.now() - tSaveStart}ms`);
+
+    // Non-fatal and awaited (not fire-and-forget) -- a serverless function
+    // can be torn down right after its response is sent, so unawaited
+    // background work here would risk silently never running.
+    try {
+      if (previous) {
+        const diff = diffNegativeItems(previous.result.negativeItems, result.negativeItems);
+        if (diff.deleted.length > 0) {
+          await createNotification(userId, {
+            type: 'items_deleted',
+            title: `${diff.deleted.length} item${diff.deleted.length !== 1 ? 's' : ''} deleted from your report`,
+            body: `Compared to your last analysis, ${diff.deleted.length} negative item${diff.deleted.length !== 1 ? 's are' : ' is'} no longer reporting.`,
+            link: '/home',
+          });
+        }
+      }
+      await createNotification(userId, {
+        type: 'new_report',
+        title: 'New credit report imported',
+        body: 'Your latest 3-bureau report is in and fully analyzed.',
+        link: '/home',
+      });
+    } catch (err) {
+      console.error('[api/analyze] notification error:', err);
+    }
 
     return NextResponse.json({ success: true, result, analysisId: saved.id });
 

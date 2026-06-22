@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { createDispute, calcExpectedResponseBy, incrementBiteLetterCount } from '@/lib/disputes';
+import { createNotification } from '@/lib/notifications';
 
 export async function POST(request: Request) {
   try {
@@ -38,6 +39,22 @@ export async function POST(request: Request) {
     });
 
     if (biteId) await incrementBiteLetterCount(biteId);
+
+    // Non-fatal but awaited (not fire-and-forget) -- a serverless function
+    // can be torn down right after its response is sent, so unawaited
+    // background work here would risk silently never running. The dispute
+    // is already recorded above, so a notification failure here still
+    // shouldn't turn into a 500 for an otherwise-successful mark-as-sent.
+    try {
+      await createNotification(userId, {
+        type: 'letter_mailed',
+        title: 'Dispute letter mailed',
+        body: `Your letter to ${bureauKey} about ${creditor} is on its way.`,
+        link: '/letter-tracking',
+      });
+    } catch (err) {
+      console.error('[disputes/mark-sent] notification error:', err);
+    }
 
     return Response.json({
       success: true,
