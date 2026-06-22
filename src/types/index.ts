@@ -149,6 +149,25 @@ export interface PayoffPlanRecord {
   updated_at: string;
 }
 
+/** One row per user -- which of the 6 "Set It Up" autopilot steps are checked off. */
+export interface SetupChecklist {
+  user_id: string;
+  completed_steps: number[];
+  nudge_email_enabled: boolean;
+  updated_at: string;
+}
+
+/** One row per user -- the "Make It Official" pledge. pledge_signed_at is null until signed. */
+export interface PayoffPledge {
+  user_id: string;
+  vision_text: string;
+  plan_text: string;
+  importance: number;
+  pledge_name: string;
+  pledge_signed_at: string | null;
+  updated_at: string;
+}
+
 /** A dated batch of dispute letters sent together in one visit to Dispute Letters -- shown on History */
 export interface Bite {
   id: string;

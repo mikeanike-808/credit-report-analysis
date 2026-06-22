@@ -211,6 +211,14 @@ select.input { appearance: none; cursor: pointer; }
   100% { transform: translateY(105vh) rotate(720deg); opacity: .95; }
 }
 
+/* print-only content -- used by the pledge's printable plan, hidden on
+   screen and revealed only inside the browser's print dialog */
+.dg-printonly { display: none; }
+@media print {
+  .dg-noprint { display: none !important; }
+  .dg-printonly { display: block !important; }
+}
+
 /* numbers / utility */
 .tnum { font-variant-numeric: tabular-nums; }
 

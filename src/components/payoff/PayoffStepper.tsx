@@ -3,14 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/Icon';
 
-// Set It Up and Make It Official ship in a later phase -- their routes don't
-// exist yet, so those steps render but aren't clickable until they do.
 const STEPS = [
   { label: 'Your Budget', href: '/payoff/budget' },
   { label: 'Your Payoff Plan', href: '/payoff/calculator' },
   { label: 'Stay on Track', href: '/payoff/tracker' },
-  { label: 'Set It Up', href: undefined },
-  { label: 'Make It Official', href: undefined },
+  { label: 'Set It Up', href: '/payoff/setup' },
+  { label: 'Make It Official', href: '/payoff/pledge' },
 ] as const;
 
 export function PayoffStepper({ current }: { current: number }) {

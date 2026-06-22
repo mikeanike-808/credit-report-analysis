@@ -160,6 +160,7 @@ export default function PayoffTrackerPage() {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginTop: 20 }}>
         <button className="btn btn-ghost" onClick={() => router.push('/payoff/calculator')}>Back</button>
+        <button className="btn btn-primary" onClick={() => router.push('/payoff/setup')}>Next: Set It Up</button>
       </div>
     </div>
   );
