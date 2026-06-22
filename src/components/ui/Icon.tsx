@@ -43,6 +43,9 @@ const ICON_PATHS: Record<string, React.ReactNode> = {
   send:        <><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" /></>,
   star:        <path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9L12 17.8 5.8 21l1.2-6.9-5-4.9 6.9-1L12 2z" />,
   gem:         <><path d="M6 3h12l4 6-10 12L2 9z" /><path d="M2 9h20M9 3l3 6-3 12M15 3l-3 6 3 12" /></>,
+  creditCard:  <><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></>,
+  briefcase:   <><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></>,
+  plus:        <path d="M12 5v14M5 12h14" />,
 };
 
 interface IconProps {

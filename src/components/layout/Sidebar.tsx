@@ -20,10 +20,12 @@ const CREDIT_PLAN_NAV = [
 
 const NEW_ANALYSIS_ITEM = { href: '/upload', label: 'New Analysis', icon: 'uploadCloud' } as const;
 
+// href is undefined for goals whose pages don't exist yet (Grow & Rebuild
+// ships in a later phase) -- the row still renders, just isn't a link.
 const JOURNEY_GOALS = [
-  { label: 'Credit Plan', icon: 'gauge' },
-  { label: 'Payoff Plan', icon: 'dollarSign' },
-  { label: 'Grow & Rebuild', icon: 'trending' },
+  { label: 'Credit Plan', icon: 'gauge', href: '/home' },
+  { label: 'Payoff Plan', icon: 'dollarSign', href: '/payoff' },
+  { label: 'Grow & Rebuild', icon: 'trending', href: undefined },
 ] as const;
 
 interface JourneyApiResponse {
@@ -63,6 +65,8 @@ function useJourney() {
 interface JourneyStepRowProps {
   label: string;
   icon: string;
+  href?: string;
+  active: boolean;
   done: boolean;
   locked: boolean;
   isCurrent: boolean;
@@ -72,7 +76,24 @@ interface JourneyStepRowProps {
   onToggle: () => void;
 }
 
-function JourneyStepRow({ label, icon, done, locked, isCurrent, last, celebrating, index, onToggle }: JourneyStepRowProps) {
+function JourneyStepRow({ label, icon, href, active, done, locked, isCurrent, last, celebrating, index, onToggle }: JourneyStepRowProps) {
+  const labelBlock = (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 800,
+        letterSpacing: '.06em', textTransform: 'uppercase', color: done ? 'var(--blue-strong)' : 'var(--muted)',
+      }}>
+        {done ? <><Icon name="trophy" size={11} /> Reached</> : (isCurrent ? 'Current goal' : `Goal ${index + 1}`)}
+      </div>
+      <div style={{
+        fontSize: 14.5, fontWeight: (isCurrent || done) ? 700 : 600,
+        color: active ? 'var(--blue-strong)' : done ? 'var(--blue-strong)' : (locked ? 'var(--muted)' : 'var(--ink)'),
+      }}>
+        {label}
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 8px', opacity: locked ? 0.55 : 1 }}>
       <span style={{ position: 'relative', flex: 'none', display: 'grid', placeItems: 'center' }}>
@@ -108,20 +129,9 @@ function JourneyStepRow({ label, icon, done, locked, isCurrent, last, celebratin
           {done ? <Icon name="check" size={16} stroke={3} /> : (locked ? <Icon name="lock" size={13} /> : <Icon name={icon} size={15} />)}
         </button>
       </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 800,
-          letterSpacing: '.06em', textTransform: 'uppercase', color: done ? 'var(--blue-strong)' : 'var(--muted)',
-        }}>
-          {done ? <><Icon name="trophy" size={11} /> Reached</> : (isCurrent ? 'Current goal' : `Goal ${index + 1}`)}
-        </div>
-        <div style={{
-          fontSize: 14.5, fontWeight: (isCurrent || done) ? 700 : 600,
-          color: done ? 'var(--blue-strong)' : (locked ? 'var(--muted)' : 'var(--ink)'),
-        }}>
-          {label}
-        </div>
-      </div>
+      {!locked && href ? (
+        <Link href={href} style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>{labelBlock}</Link>
+      ) : labelBlock}
     </div>
   );
 }
@@ -229,6 +239,8 @@ export function Sidebar() {
               index={i}
               label={goal.label}
               icon={goal.icon}
+              href={goal.href}
+              active={!!goal.href && (pathname === goal.href || pathname.startsWith(goal.href + '/'))}
               done={i < currentGoalIndex}
               locked={i > currentGoalIndex}
               isCurrent={i === currentGoalIndex}

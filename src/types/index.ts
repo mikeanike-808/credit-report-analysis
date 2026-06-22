@@ -111,6 +111,22 @@ export interface JourneyProgress {
   updated_at: string;
 }
 
+/** One debt the user is paying off, for the Payoff Plan pillar -- some sourced from the credit report, some entered manually. */
+export interface Debt {
+  id: string;
+  user_id: string;
+  name: string;
+  balance: number;
+  apr: number;
+  min_payment: number;
+  source: 'report' | 'manual';
+  /** Links a report-sourced debt back to the negativeItem it came from (creditor+accountNumber), to avoid duplicating it on re-import */
+  report_account_ref: string | null;
+  status: 'active' | 'paid_off';
+  created_at: string;
+  updated_at: string;
+}
+
 /** A dated batch of dispute letters sent together in one visit to Dispute Letters -- shown on History */
 export interface Bite {
   id: string;
