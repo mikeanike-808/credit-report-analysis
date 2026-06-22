@@ -523,7 +523,7 @@ export default function PayoffPlanPage() {
         setSaveError('Something went wrong saving your debts. Please try again.');
         return;
       }
-      router.push('/home');
+      router.push('/payoff/budget');
     } catch {
       setSaveError('Something went wrong saving your debts. Please try again.');
     } finally {

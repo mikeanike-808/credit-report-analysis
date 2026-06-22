@@ -127,6 +127,28 @@ export interface Debt {
   updated_at: string;
 }
 
+export interface BudgetCategory {
+  name: string;
+  amount: number;
+  color: string;
+  custom?: boolean;
+}
+
+/** One row per user -- overwritten in place each time Budget Builder is edited. */
+export interface Budget {
+  user_id: string;
+  income: number;
+  categories: BudgetCategory[];
+  updated_at: string;
+}
+
+/** One row per user -- the user's chosen extra monthly payment toward debt, for the avalanche calculator. */
+export interface PayoffPlanRecord {
+  user_id: string;
+  extra_payment: number;
+  updated_at: string;
+}
+
 /** A dated batch of dispute letters sent together in one visit to Dispute Letters -- shown on History */
 export interface Bite {
   id: string;
